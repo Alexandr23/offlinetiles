@@ -1,0 +1,16 @@
+[package]
+name = "tile-selector"
+description = "Web Mercator tile math and polygon-based XYZ tile selection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+geo = { workspace = true }
+geo-types = { workspace = true }
+geojson = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

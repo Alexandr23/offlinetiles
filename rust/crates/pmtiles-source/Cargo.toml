@@ -1,0 +1,26 @@
+[package]
+name = "pmtiles-source"
+description = "Read-only access to the master PMTiles archive (mmap, async, cached directories)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Enables a tiny PMTiles writer used to build test fixtures and benchmarks.
+fixture = ["pmtiles/write"]
+
+[dependencies]
+tile-selector = { workspace = true }
+pmtiles = { workspace = true }
+bytes = { workspace = true }
+flate2 = "1"
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+pmtiles = { workspace = true, features = ["write"] }
+tempfile = { workspace = true }

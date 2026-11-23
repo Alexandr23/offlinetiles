@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node"],
+    "verbatimModuleSyntax": true,
+    "rootDir": ".."
+  },
+  "include": ["./**/*.ts", "../apps/server/src/config/config.ts", "../apps/server/src/modules/dataset/pmtiles-fs-source.ts", "../packages/contracts/src/**/*.ts"]
+}

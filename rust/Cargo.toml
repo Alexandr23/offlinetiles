@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/generator-cli",
+  "crates/generator-core",
+  "crates/tile-selector",
+  "crates/pmtiles-source",
+  "crates/vector-generator",
+  "crates/raster-generator",
+  "crates/mbtiles-writer",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+tile-selector = { path = "crates/tile-selector" }
+pmtiles-source = { path = "crates/pmtiles-source" }
+mbtiles-writer = { path = "crates/mbtiles-writer" }
+vector-generator = { path = "crates/vector-generator" }
+raster-generator = { path = "crates/raster-generator" }
+generator-core = { path = "crates/generator-core" }
+
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+geo = "0.33"
+geo-types = "0.7"
+geojson = { version = "1.0", features = ["geo-types"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+pmtiles = { version = "0.24", default-features = false, features = ["mmap-async-tokio", "tilejson"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "signal", "io-util", "process", "time", "fs"] }
+crossbeam-channel = "0.5"
+bytes = "1"
+png = "0.18"
+image = { version = "0.25", default-features = false, features = ["png"] }
+tempfile = "3"
+tracing = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+debug = false

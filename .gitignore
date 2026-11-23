@@ -1,0 +1,54 @@
+# Dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Env & local secrets
+.env
+.env.local
+.env.*.local
+
+# Logs & crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Planetiler / Java tools (downloaded locally)
+planetiler.jar
+planet-latest.osm.pbf.md5
+
+# Large geospatial / tile artifacts (never commit)
+*.pmtiles
+*.mbtiles
+*.osm.pbf
+
+# Rust
+rust/target/
+rust/fixtures/*.tmp
+
+# Runtime data (OSM extracts, master tiles, exports, fonts, Planetiler cache)
+# Keep directory structure via .gitkeep only.
+/data/**
+!/data/.gitkeep
+!/data/source/
+!/data/source/.gitkeep
+!/data/master/
+!/data/master/.gitkeep
+!/data/exports/
+!/data/exports/.gitkeep
+!/data/assets/
+!/data/assets/.gitkeep
+
+# Natural Earth download cache for build-countries
+/scripts/data/**
+!/scripts/data/.gitkeep

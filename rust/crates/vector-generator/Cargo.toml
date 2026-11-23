@@ -1,0 +1,22 @@
+[package]
+name = "vector-generator"
+description = "Vector tile export: copies MVT tiles from PMTiles into MBTiles"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+generator-core = { workspace = true }
+pmtiles-source = { workspace = true }
+mbtiles-writer = { workspace = true }
+tile-selector = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rusqlite = { workspace = true }
+serde_json = { workspace = true }
+pmtiles-source = { workspace = true, features = ["fixture"] }
+flate2 = "1"

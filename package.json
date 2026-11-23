@@ -1,0 +1,43 @@
+{
+  "name": "map-exporter",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Local OpenStreetMap tile exporter: PMTiles master dataset -> vector/raster MBTiles",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @map-exporter/web --filter @map-exporter/server dev",
+    "dev:web": "pnpm --filter @map-exporter/web dev",
+    "dev:server": "pnpm --filter @map-exporter/server dev",
+    "dev:worker": "pnpm --filter @map-exporter/server dev:worker",
+    "build": "pnpm -r build",
+    "build:rust": "cargo build --release --manifest-path rust/Cargo.toml",
+    "test": "pnpm -r test && pnpm test:scripts",
+    "test:rust": "cargo test --manifest-path rust/Cargo.toml",
+    "lint": "pnpm -r lint",
+    "lint:rust": "cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings",
+    "fmt": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\" && cargo fmt --manifest-path rust/Cargo.toml",
+    "fmt:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "typecheck": "pnpm -r typecheck && tsc -p scripts/tsconfig.json",
+    "db:migrate": "pnpm --filter @map-exporter/server db:migrate",
+    "init-map": "tsx scripts/init.ts",
+    "download-osm": "tsx scripts/download-osm.ts",
+    "build-master": "tsx scripts/build-master.ts",
+    "build-countries": "tsx scripts/build-countries.ts",
+    "server": "pnpm --filter @map-exporter/server start",
+    "server:api": "pnpm --filter @map-exporter/server api",
+    "server:worker": "pnpm --filter @map-exporter/server worker",
+    "test:scripts": "node --import tsx --test \"scripts/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "prettier": "^3.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "pmtiles": "^4.3.0",
+    "zod": "^4.0.0"
+  }
+}

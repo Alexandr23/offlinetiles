@@ -1,0 +1,71 @@
+name: map-exporter
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mapexporter
+      POSTGRES_PASSWORD: mapexporter
+      POSTGRES_DB: mapexporter
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mapexporter -d mapexporter"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    command: ["node", "--import", "tsx", "apps/server/src/main.ts", "api"]
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://mapexporter:mapexporter@postgres:5432/mapexporter
+      DATA_DIR: /data
+      GENERATOR_BINARY: /usr/local/bin/tile-generator
+      RASTER_RENDERER_COMMAND: node /app/apps/renderer/src/index.js
+      PUBLIC_API_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["full"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    command: ["node", "--import", "tsx", "apps/server/src/main.ts", "worker"]
+    environment:
+      DATABASE_URL: postgres://mapexporter:mapexporter@postgres:5432/mapexporter
+      DATA_DIR: /data
+      GENERATOR_BINARY: /usr/local/bin/tile-generator
+      RASTER_RENDERER_COMMAND: node /app/apps/renderer/src/index.js
+      PUBLIC_API_URL: http://localhost:3000
+    volumes:
+      - ./data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["full"]
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+    profiles: ["full"]
+
+volumes:
+  pgdata:

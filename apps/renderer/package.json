@@ -1,0 +1,22 @@
+{
+  "name": "@map-exporter/renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless MapLibre Native raster tile renderer sidecar driven by the Rust generator over stdin/stdout",
+  "main": "./src/index.js",
+  "scripts": {
+    "build": "node -e \"process.exit(0)\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@maplibre/maplibre-gl-native": "5.4.1",
+    "pmtiles": "^4.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.0"
+  }
+}
