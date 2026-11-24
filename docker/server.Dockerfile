@@ -16,13 +16,18 @@ COPY apps/server/package.json apps/server/
 COPY apps/renderer/package.json apps/renderer/
 RUN pnpm install --frozen-lockfile --filter @map-exporter/server... --filter @map-exporter/renderer... --filter map-exporter
 
-FROM node:22-bookworm-slim
-# MapLibre Native (renderer sidecar) needs GL + X11 libs and a virtual framebuffer.
+FROM node:22-bookworm-slim AS node-runtime
+
+# Ubuntu 22.04, not Debian: the prebuilt @maplibre/maplibre-gl-native 5.4.1 Linux binary is
+# built on Ubuntu 22.04 and links against its ICU 70 (libicu*.so.70) and libjpeg.so.8.
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+# MapLibre Native (renderer sidecar) needs GL + X11 libs, Mesa's software GLX and a virtual framebuffer.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libcurl4 libglfw3 libuv1 libjpeg62-turbo libpng16-16 libwebp7 libicu72 \
-      libopengl0 libgl1 libegl1 xvfb xauth ca-certificates \
+      libcurl4 libuv1 libjpeg-turbo8 libpng16-16 libwebp7 libicu70 \
+      libopengl0 libglx0 libgl1 libx11-6 libgl1-mesa-dri libglx-mesa0 xvfb ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN corepack enable
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY --from=node-deps /app/packages/contracts/node_modules ./packages/contracts/node_modules

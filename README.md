@@ -139,4 +139,6 @@ described in [DEPLOYMENT.md](DEPLOYMENT.md).
 - **Raster rendering** runs in `apps/renderer`, a MapLibre Native sidecar spawned per generator
   thread. `@maplibre/maplibre-gl-native` is pinned to `5.4.1` (the last OpenGL build): the 6.x
   Metal builds render blank frames on macOS, while 5.4.1 ships prebuilt binaries for Linux and
-  macOS (x64/arm64). On Linux it needs a display, which `docker/entrypoint.sh` provides via `xvfb-run`.
+  macOS (x64/arm64). On Linux it needs a display, which `docker/entrypoint.sh` provides by starting
+  `Xvfb`. Its Linux binary is built on Ubuntu 22.04 (ICU 70, libjpeg8), so the server image runtime is
+  `ubuntu:22.04` rather than Debian.
