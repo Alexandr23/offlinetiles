@@ -20,7 +20,7 @@ FROM node:22-bookworm-slim
 # MapLibre Native (renderer sidecar) needs GL + X11 libs and a virtual framebuffer.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libcurl4 libglfw3 libuv1 libjpeg62-turbo libpng16-16 libwebp7 libicu72 \
-      libopengl0 libgl1 libegl1 xvfb ca-certificates \
+      libopengl0 libgl1 libegl1 xvfb xauth ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
