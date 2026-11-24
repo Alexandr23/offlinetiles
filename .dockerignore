@@ -1,0 +1,22 @@
+# Keep the build context small: data/ alone can be 100+ GB.
+.git
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+rust/target
+data
+scripts/data
+
+.env
+.env.*
+!.env.example
+
+*.log
+hs_err_pid*
+replay_pid*
+planetiler.jar
+planet-latest.osm.pbf.md5
+*.pmtiles
+*.mbtiles
+*.osm.pbf
+.DS_Store

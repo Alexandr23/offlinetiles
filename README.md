@@ -66,7 +66,7 @@ pnpm init-map --planet --memory 48g     # ~80 GB download, 100+ GB disk, many ho
 | `rust/crates/raster-generator`  | Drives renderer sidecars, encodes PNG                               |
 | `rust/crates/generator-cli`     | `tile-generator generate|estimate|fixture|benchmark`                |
 | `scripts/`                      | `init-map`, `download-osm`, `build-master`                          |
-| `docker/`                       | Dockerfiles + nginx config for the full compose stack               |
+| `docker/`                       | Dockerfiles + nginx (HTTP/HTTPS) config for the full compose stack  |
 
 ## Development
 
@@ -120,7 +120,11 @@ docker compose --profile full up --build
 ```
 
 The `server`/`worker` images bundle the Rust CLI and the renderer; `data/` is bind-mounted at `/data`.
-Run `pnpm init-map` on the host first so the dataset exists.
+Run `pnpm init-map` on the host first so the dataset exists. The app is served on `http://localhost`
+(override with `WEB_HTTP_PORT`). Postgres and the API are published on `127.0.0.1` only.
+
+Production deployment to `offlinetiles.com` with Let's Encrypt HTTPS and automatic renewal is
+described in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Design notes
 
