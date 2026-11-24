@@ -262,6 +262,7 @@ monitor with SSL-expiry alerts (UptimeRobot, Better Stack, etc.). It will warn y
 | Browser shows an expired cert but `certbot certificates` is fine | nginx hasn't reloaded yet. Run `docker compose exec web nginx -s reload` and check `docker compose logs web` for `nginx reloaded`. |
 | `web` keeps restarting after enabling HTTPS | `docker compose logs web` shows the nginx error (usually a missing/unreadable certificate file). |
 | Map tiles blocked as "mixed content" | `/api/tiles.json` returned `http://` URLs. `X-Forwarded-Proto` must reach the API (set in `docker/nginx-app.conf`). |
+| Page loads but `/api/...` returns `502 Bad Gateway` | The API isn't answering. Check `docker compose ps` and `docker compose logs server`; on the VM `curl localhost:3000/api/health` must work. nginx re-resolves the `server` container every 10s (`resolver 127.0.0.11`), so recreating it only causes a brief 502. If you still run an older `web` image, `docker compose exec web nginx -s reload` fixes a stale address. |
 
 ## Files
 
