@@ -1,4 +1,5 @@
 import type { ExpressionSpecification, StyleSpecification } from 'maplibre-gl';
+import { landingTokens } from './landing.tokens';
 
 export const UAE_SOURCE = 'uae';
 export const UAE_FILL_LAYER = 'uae-fill';
@@ -10,9 +11,9 @@ export const OUTLINE_PARTS: OutlinePart[] = ['main', 'rest'];
 
 /** Glow stack, widest/softest first. All layers of a part share one growing gradient. */
 const GLOW_LAYERS = [
-  { id: 'halo', width: 9, blur: 7, opacity: 0.3 },
-  { id: 'glow', width: 4, blur: 2.5, opacity: 0.55 },
-  { id: 'core', width: 1.5, blur: 0, opacity: 1 },
+  { id: 'halo', width: 13, blur: 9, opacity: 0.34 },
+  { id: 'glow', width: 6, blur: 3, opacity: 0.6 },
+  { id: 'core', width: 2.2, blur: 0, opacity: 1 },
 ] as const;
 
 export const glowLayerId = (part: OutlinePart, id: (typeof GLOW_LAYERS)[number]['id']) => `uae-${part}-${id}`;
@@ -25,16 +26,25 @@ const COLORS = {
   country: '#8ba0bd',
   place: '#5d708c',
   water_label: '#2d3f5a',
-  glow: '#38bdf8',
+  /** The outline is a selection, so it takes the selection pink. */
+  glow: landingTokens.cut,
 } as const;
 
 type Rgba = readonly [number, number, number, number];
 
-const CLEAR: Rgba = [56, 189, 248, 0];
-const TAIL: Rgba = [56, 189, 248, 0.5];
-const HEAD: Rgba = [224, 242, 254, 1];
+const [GLOW_R, GLOW_G, GLOW_B] = [1, 3, 5].map((at) => parseInt(COLORS.glow.slice(at, at + 2), 16)) as [
+  number,
+  number,
+  number,
+];
+const glow = (alpha: number): Rgba => [GLOW_R, GLOW_G, GLOW_B, alpha];
+
+const CLEAR = glow(0);
+const TAIL = glow(0.5);
+/** The comet head: the glow colour heated almost to white. */
+const HEAD: Rgba = [255, 232, 241, 1];
 /** Colour of the finished outline once the comet head has cooled down. */
-const SETTLED: Rgba = [96, 205, 250, 0.95];
+const SETTLED = glow(0.95);
 /** Length of the bright comet trail behind the head, as a share of the line. */
 const COMET = 0.12;
 
@@ -67,7 +77,8 @@ export function growingGradient(progress: number, heat = 1): ExpressionSpecifica
 }
 
 /** Peak opacity of each glow layer (before the cycle's fade multiplier). */
-export const glowLayerOpacity = (layerId: string) => GLOW_LAYERS.find((l) => layerId.endsWith(`-${l.id}`))?.opacity ?? 1;
+export const glowLayerOpacity = (layerId: string) =>
+  GLOW_LAYERS.find((l) => layerId.endsWith(`-${l.id}`))?.opacity ?? 1;
 
 const textFont = ['Noto Sans Regular'];
 

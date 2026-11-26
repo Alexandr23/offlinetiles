@@ -26,9 +26,9 @@ export const tokens = {
     accentMuted: 'rgba(79, 209, 255, 0.16)',
     accentGlow: 'rgba(79, 209, 255, 0.35)',
 
-    /** Map selection shapes — orange so they stand out against blue water and any land colour. */
-    selection: '#ff6a1a',
-    selectionStrong: '#ff8c4a',
+    /** Map selection shapes — soft pink, so they stand apart from the cyan UI and blue water. */
+    selection: '#ff85b3',
+    selectionStrong: '#ffb3d0',
 
     success: '#3ddc97',
     successMuted: 'rgba(61, 220, 151, 0.16)',

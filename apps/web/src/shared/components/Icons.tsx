@@ -216,6 +216,22 @@ export const IconLogout = (p: IconProps) => (
   </svg>
 );
 
+export const IconMail = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M3.5 6.5l8.5 6.5 8.5-6.5" />
+  </svg>
+);
+
+export const IconSliders = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+    <circle cx="16" cy="6" r="2" />
+    <circle cx="10" cy="12" r="2" />
+    <circle cx="18" cy="18" r="2" />
+  </svg>
+);
+
 export const IconDashboard = (p: IconProps) => (
   <svg {...base(p)}>
     <rect x="3" y="3" width="8" height="8" rx="1" />

@@ -1,112 +1,221 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import styled, { keyframes } from 'styled-components';
-import { selectIsSignedIn, useAuthStore } from '@/modules/auth/auth.store';
+import styled, { createGlobalStyle, css, keyframes } from 'styled-components';
+import { BackdropTrace } from './BackdropTrace';
+import { CutDiagram } from './CutDiagram';
 import { HeroMap } from './HeroMap';
-import { landingTokens } from './landing.tokens';
+import { InterestForm } from './InterestForm';
+import { ATTRIBUTION, CONTACT, FEATURES, FEATURES_SECTION, HERO, SITE, STEPS, USE_CASES } from './landing.content';
+import { TILE_BACKDROP } from './landing.backdrop';
+import { landingTokens as t } from './landing.tokens';
+import { Logo, LOGO_LABEL } from './Logo';
+import { StepArt } from './StepArt';
+import { SLIDE_ATTR, useSlides } from './useSlides';
 
-const fadeUp = keyframes`
-  from { opacity: 0; transform: translateY(12px); }
+const HEADER_HEIGHT = '64px';
+const GUTTER = 'clamp(20px, 4vw, 48px)';
+/** Screens where every slide fits, so the slide pager has room and is worth showing. */
+const ROOMY = '(min-width: 980px) and (min-height: 720px)';
+const EASE = 'cubic-bezier(0.2, 0, 0, 1)';
+
+/**
+ * The landing is a slide show: every section fills the screen and the page snaps between them.
+ * Set on the root because the viewport is the scroller. Slides taller than a small screen still
+ * scroll normally inside themselves; useSlides adds one-gesture paging where they all fit.
+ */
+const SlideSnap = createGlobalStyle`
+  html {
+    scroll-snap-type: y mandatory;
+  }
+`;
+
+const snap = css`
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+`;
+
+const slide = css`
+  ${snap}
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100svh;
+  padding: calc(${HEADER_HEIGHT} + 32px) ${GUTTER} 48px;
+`;
+const rise = keyframes`
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 `;
 
 const Page = styled.div`
   min-height: 100%;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59, 130, 246, 0.16), transparent 55%),
-    radial-gradient(ellipse 40% 30% at 90% 20%, rgba(14, 165, 233, 0.08), transparent 50%),
-    ${landingTokens.bg};
-  color: ${landingTokens.text};
-  font-family: 'Plus Jakarta Sans', var(--font-sans);
+  background: ${t.bg};
+  isolation: isolate;
+  /* Backdrop for the whole page, fixed to the screen: big tiles in the bottom-left corner,
+     smaller and fainter towards the top-right. The slides scroll over it. */
+  &::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: ${TILE_BACKDROP} left bottom / cover no-repeat;
+    pointer-events: none;
+  }
+  color: ${t.text};
+  font-family: ${t.fontDisplay};
+  font-feature-settings: normal;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+
+  a:focus-visible {
+    outline: 2px solid ${t.accent};
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: ${t.accent};
+    color: ${t.onAccent};
+  }
 `;
 
-const Nav = styled.header`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+const SkipLink = styled.a`
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 60;
+  padding: 10px 14px;
+  background: ${t.accent};
+  color: ${t.onAccent};
+  font: 700 12px ${t.fontMono};
+  letter-spacing: 0.1em;
+  transform: translateY(-200%);
+  &:focus {
+    transform: none;
+  }
+`;
+
+/** Over the first slide the header is invisible; past it, it turns into a sticky glass bar with a border. */
+const Header = styled.header<{ $solid: boolean }>`
+  position: fixed;
+  inset: 0 0 auto 0;
   z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 24px;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.55), transparent);
+  height: ${HEADER_HEIGHT};
+  padding: 0 ${GUTTER};
+  background: ${({ $solid }) => ($solid ? t.glass : 'transparent')};
+  /* Same width either way, so the header does not move when it changes. */
+  border-bottom: 1px solid ${({ $solid }) => ($solid ? t.line : 'transparent')};
+  backdrop-filter: blur(14px);
+  transition:
+    background 360ms ease,
+    border-color 360ms ease;
 `;
 
 const Brand = styled(Link)`
   display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: ${landingTokens.text} !important;
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: -0.02em;
-  text-decoration: none !important;
-  svg {
-    color: ${landingTokens.accent};
-  }
+  color: ${t.text};
+  text-decoration: none;
 `;
 
-const NavLinks = styled.nav`
+const Nav = styled.nav`
   display: none;
-  align-items: center;
-  gap: 22px;
-  @media (min-width: 900px) {
+  gap: 32px;
+  font: 500 12px ${t.fontMono};
+  letter-spacing: 0.14em;
+  @media (min-width: 760px) {
     display: flex;
+    /* Centred on the header, independent of the brand and button widths. */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
   }
   a {
-    color: ${landingTokens.textSecondary} !important;
-    font-size: 13.5px;
-    font-weight: 500;
-    text-decoration: none !important;
-    transition: color 160ms ease;
+    color: ${t.textSecondary};
+    text-decoration: none;
+    transition: color 140ms ease;
     &:hover {
-      color: ${landingTokens.text} !important;
+      color: ${t.text};
     }
   }
 `;
 
-const NavActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
+const Arrow = styled.span`
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
 `;
 
-const GhostLink = styled(Link)`
-  display: none;
-  color: ${landingTokens.textSecondary} !important;
-  font-size: 13.5px;
-  font-weight: 500;
-  text-decoration: none !important;
-  @media (min-width: 640px) {
-    display: inline;
+const button = css`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: ${t.radiusButton};
+  font: 700 13px ${t.fontMono};
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+  &:hover ${Arrow} {
+    transform: translateX(4px);
+  }
+  &:active {
+    transform: translateY(1px);
   }
 `;
 
-const CtaLink = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: ${landingTokens.accent};
-  color: #fff !important;
-  font-size: 13.5px;
-  font-weight: 600;
-  text-decoration: none !important;
-  transition: background 160ms ease;
+const PrimaryBtn = styled(Link)<{ $compact?: boolean }>`
+  ${button}
+  background: ${t.accent};
+  color: ${t.onAccent};
   &:hover {
-    background: ${landingTokens.accentHover};
+    background: ${t.accentHover};
+  }
+  ${({ $compact }) =>
+    $compact &&
+    css`
+      height: 38px;
+      padding: 0 16px;
+      font-size: 12px;
+    `}
+`;
+
+const SecondaryBtn = styled.a`
+  ${button}
+  border-color: ${t.lineStrong};
+  background: ${t.glass};
+  color: ${t.text};
+  &:hover {
+    border-color: ${t.accent};
+    color: ${t.accent};
   }
 `;
 
 const Hero = styled.section`
+  ${snap}
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+`;
+
+const HeroStage = styled.div`
   position: relative;
-  height: 100dvh;
-  min-height: 640px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 540px;
   overflow: hidden;
-  background: #050a14;
+  @media (max-width: 720px) {
+    align-items: flex-start;
+  }
 `;
 
 const HeroScrim = styled.div`
@@ -115,133 +224,258 @@ const HeroScrim = styled.div`
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(11, 18, 32, 0.82) 0%, rgba(11, 18, 32, 0.45) 38%, rgba(11, 18, 32, 0.08) 62%, transparent 78%),
-    linear-gradient(180deg, rgba(11, 18, 32, 0.35) 0%, transparent 28%, transparent 72%, rgba(11, 18, 32, 0.55) 100%);
+    linear-gradient(90deg, ${t.bg} 0%, rgba(7, 11, 18, 0.7) 30%, rgba(7, 11, 18, 0.1) 60%, transparent 78%),
+    /* Under the header the map is fully faded, then it fades in gently below. */
+    linear-gradient(180deg, ${t.bg} 0px, rgba(7, 11, 18, 0.9) ${HEADER_HEIGHT}, transparent 240px),
+    linear-gradient(180deg, rgba(7, 11, 18, 0.5) 0%, transparent 30%, transparent 75%, ${t.bg} 100%);
+  @media (max-width: 720px) {
+    background: linear-gradient(180deg, ${t.bg} 0%, rgba(7, 11, 18, 0.82) 42%, transparent 64%, ${t.bg} 100%);
+  }
 `;
 
 const HeroCopy = styled.div`
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 3;
+  position: relative;
+  z-index: 2;
+  padding: calc(${HEADER_HEIGHT} + 24px) ${GUTTER} 32px;
+  animation: ${rise} 520ms cubic-bezier(0.2, 0, 0, 1) both;
+`;
+
+const Kicker = styled.p`
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  max-width: min(520px, 92vw);
-  padding: 96px 24px 48px 28px;
-  pointer-events: none;
-  animation: ${fadeUp} 560ms cubic-bezier(0.2, 0, 0, 1);
-  @media (min-width: 900px) {
-    padding-left: 48px;
-    max-width: 560px;
-  }
-  @media (max-width: 720px) {
-    justify-content: flex-start;
-    padding-top: 88px;
-    max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+  color: ${t.accent};
+  font: 500 12px ${t.fontMono};
+  letter-spacing: 0.18em;
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: currentColor;
   }
 `;
 
-const Eyebrow = styled.p`
-  margin: 0 0 14px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: ${landingTokens.accent};
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+const display = css`
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 0.96;
+  text-wrap: balance;
 `;
 
 const Headline = styled.h1`
-  margin: 0 0 16px;
-  font-size: clamp(34px, 5vw, 56px);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
-  em {
-    font-style: normal;
-    color: ${landingTokens.accent};
+  ${display}
+  margin: 0;
+  /* Sized to stay left of the map's subject: one line per sentence on phones, capped on desktop. */
+  font-size: min(8.2vw, clamp(36px, 5vw, 64px));
+  span {
+    display: block;
+    white-space: nowrap;
+  }
+  span:last-child {
+    color: ${t.cut};
   }
 `;
 
-const Support = styled.p`
-  margin: 0 0 22px;
-  max-width: 36ch;
-  color: rgba(226, 232, 240, 0.88);
-  font-size: clamp(15px, 1.6vw, 17px);
-  line-height: 1.5;
-  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.4);
+const Lead = styled.p`
+  max-width: 46ch;
+  margin: 24px 0 0;
+  color: ${t.text};
+  font-size: clamp(13px, 1.2vw, 15px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.65;
 `;
 
 const CtaRow = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  pointer-events: auto;
+  gap: 12px;
+  margin-top: 32px;
 `;
 
-const PrimaryBtn = styled(Link)`
-  display: inline-flex;
+const Slide = styled.section`
+  ${slide}
+`;
+
+/** Slide content: centred column that rises into place the first time its slide shows. */
+const SlideBody = styled.div<{ $seen: boolean }>`
+  width: 100%;
+  max-width: ${t.maxWidth};
+  margin: 0 auto;
+  opacity: ${({ $seen }) => ($seen ? 1 : 0)};
+  transform: ${({ $seen }) => ($seen ? 'none' : 'translateY(20px)')};
+  transition:
+    opacity 600ms ${EASE},
+    transform 600ms ${EASE};
+`;
+
+const Pager = styled.nav`
+  position: fixed;
+  top: 50%;
+  right: 6px;
+  z-index: 30;
+  display: none;
+  flex-direction: column;
   align-items: center;
-  height: 44px;
-  padding: 0 18px;
-  border-radius: 12px;
-  background: ${landingTokens.accent};
-  color: #fff !important;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none !important;
-  transition: background 160ms ease;
-  &:hover {
-    background: ${landingTokens.accentHover};
+  transform: translateY(-50%);
+  color: ${t.textMuted};
+  font: 500 10px ${t.fontMono};
+  letter-spacing: 0.1em;
+  @media ${ROOMY} {
+    display: flex;
+  }
+  span:first-child {
+    margin-bottom: 8px;
+    color: ${t.accent};
+  }
+  span:last-child {
+    margin-top: 8px;
+  }
+  a {
+    padding: 5px 9px;
+    &::before {
+      content: '';
+      display: block;
+      width: 6px;
+      height: 6px;
+      background: ${t.lineStrong};
+      transition:
+        height 240ms ${EASE},
+        background 240ms ease;
+    }
+    &:hover::before {
+      background: ${t.text};
+    }
+    &[aria-current]::before {
+      height: 24px;
+      background: ${t.accent};
+    }
   }
 `;
 
-const SecondaryBtn = styled.a`
-  display: inline-flex;
-  align-items: center;
-  height: 44px;
-  padding: 0 18px;
-  border-radius: 12px;
-  border: 1px solid rgba(248, 250, 252, 0.28);
-  background: rgba(15, 23, 42, 0.4);
-  color: #fff !important;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none !important;
-  backdrop-filter: blur(10px);
+const Title = styled.h2`
+  ${display}
+  margin: 0;
+  font-size: clamp(30px, 4.6vw, 60px);
+  em {
+    font-style: normal;
+    color: ${t.cut};
+  }
 `;
 
-const Section = styled.section`
-  max-width: ${landingTokens.maxWidth};
-  margin: 0 auto;
-  padding: 64px 24px;
+/** Tighter top and bottom padding: this slide has to fit a 720px-tall laptop screen. */
+const FeaturesSlide = styled(Slide)`
+  padding-top: calc(${HEADER_HEIGHT} + 16px);
+  padding-bottom: 24px;
 `;
 
-const SectionHead = styled.div`
-  max-width: 540px;
-  margin-bottom: 32px;
-  h2 {
-    margin: 0 0 8px;
-    font-size: clamp(22px, 2.6vw, 28px);
-    letter-spacing: -0.025em;
+/**
+ * Header on top, then two columns on desktop: features 01 to 05 on the left and 06 (cutting-edge, with its diagram)
+ * on the right. Both columns start on the same line, under the header.
+ */
+const FeaturesBody = styled(SlideBody)`
+  display: grid;
+  gap: 32px;
+  @media (min-width: 940px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 56px;
+    align-items: start;
+  }
+`;
+
+const FeaturesHead = styled.div`
+  @media (min-width: 940px) {
+    grid-column: 1 / -1;
+  }
+`;
+
+/** Slide header: a question in white, the short answer in pink. One line on desktop. */
+const SlideTitle = styled(Title)`
+  @media (min-width: 940px) {
+    white-space: nowrap;
+  }
+`;
+
+/** Two evenly balanced lines at any column width. */
+const CutBody = styled.p`
+  text-wrap: balance;
+`;
+
+/** A bit narrower than the column, with more air between the heading above and the diagram. */
+const Figure = styled.figure`
+  max-width: 85%;
+  margin: 36px 0 0;
+  padding: 0;
+`;
+
+const cellGrid = css`
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`;
+
+const FeatureList = styled.ul`
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Side by side with feature 06: stretch to its height and share the extra room between the rows. */
+  @media (min-width: 940px) {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    > li {
+      flex: 1 0 auto;
+      align-content: center;
+    }
+  }
+`;
+
+const featureRow = css`
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 4px;
+  padding: 10px 4px;
+  span {
+    color: ${t.accent};
+    font: 500 12px ${t.fontMono};
+    letter-spacing: 0.16em;
+    padding-top: 3px;
+  }
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    font-stretch: 112%;
     font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
   }
   p {
-    margin: 0;
-    color: ${landingTokens.textSecondary};
-    font-size: 15px;
-    line-height: 1.5;
+    margin: 8px 0 0;
+    color: ${t.textSecondary};
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    line-height: 1.6;
   }
 `;
 
-const FeatureGrid = styled.div`
-  display: grid;
-  gap: 14px;
-  @media (min-width: 720px) {
+const FeatureRow = styled.li`
+  ${featureRow}
+`;
+
+/** Feature 06: the same row as the others, with the diagram under its heading. */
+const CutFeature = styled.div`
+  ${featureRow}
+`;
+
+const StepList = styled.ol`
+  ${cellGrid}
+  margin-top: 40px;
+  @media (min-width: 640px) {
     grid-template-columns: repeat(2, 1fr);
   }
   @media (min-width: 980px) {
@@ -249,259 +483,129 @@ const FeatureGrid = styled.div`
   }
 `;
 
-const FeatureCard = styled.article`
-  overflow: hidden;
-  border-radius: ${landingTokens.radiusSm};
-  background: rgba(17, 24, 39, 0.72);
-  border: 1px solid ${landingTokens.glassBorder};
-  transition:
-    transform 220ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 220ms ease;
-  &:hover {
-    transform: translateY(-3px);
-    border-color: rgba(59, 130, 246, 0.35);
-  }
-`;
-
-const CardMedia = styled.div`
+/** Solid, so the card never fights the tile pattern behind it. */
+const CARD_BG = `linear-gradient(180deg, #111b2a 0%, #0b121c 100%)`;
+/**
+ * Text laid over the bottom of a picture: a frosted layer that fades in from nothing at its top
+ * edge, so there is no hard line between the picture and the text.
+ */
+const glass = css`
   position: relative;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  background: #0f172a;
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 420ms cubic-bezier(0.2, 0, 0, 1);
-  }
-  ${FeatureCard}:hover & img {
-    transform: scale(1.04);
-  }
-`;
-
-const CardBody = styled.div`
-  padding: 16px 18px 18px;
-  h3 {
-    margin: 0 0 6px;
-    font-size: 15px;
-    font-weight: 600;
-  }
-  p {
-    margin: 0;
-    color: ${landingTokens.textSecondary};
-    font-size: 13.5px;
-    line-height: 1.45;
-  }
-`;
-
-const PreviewShell = styled.div`
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 200px;
-  gap: 0;
-  min-height: 340px;
-  border-radius: ${landingTokens.radius};
-  overflow: hidden;
-  border: 1px solid ${landingTokens.glassBorder};
-  background: #0f172a;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-  @media (max-width: 860px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const PreviewSide = styled.div`
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.92);
-  border-right: 1px solid ${landingTokens.glassBorder};
-  &:last-child {
-    border-right: 0;
-    border-left: 1px solid ${landingTokens.glassBorder};
-  }
-  @media (max-width: 860px) {
-    border-right: 0;
-    border-bottom: 1px solid ${landingTokens.glassBorder};
-    &:last-child {
-      border-left: 0;
-      border-bottom: 0;
-      border-top: 1px solid ${landingTokens.glassBorder};
-    }
-  }
-  h4 {
-    margin: 0 0 12px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: ${landingTokens.textMuted};
-  }
-`;
-
-const PresetGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-`;
-
-const PresetThumb = styled.div<{ $bg: string; $active?: boolean }>`
-  aspect-ratio: 1.35;
-  border-radius: 8px;
-  background: ${({ $bg }) => $bg};
-  border: 1.5px solid ${({ $active }) => ($active ? landingTokens.accent : 'transparent')};
-  display: grid;
-  place-items: end start;
-  padding: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-`;
-
-const PreviewMap = styled.div`
-  position: relative;
-  min-height: 280px;
-  background:
-    radial-gradient(circle at 30% 40%, rgba(59, 130, 246, 0.18), transparent 42%),
-    radial-gradient(circle at 70% 55%, rgba(14, 165, 233, 0.12), transparent 38%),
-    linear-gradient(160deg, #0b1220 0%, #111827 45%, #0f172a 100%);
-  overflow: hidden;
+  isolation: isolate;
   &::before {
     content: '';
     position: absolute;
-    inset: 18% 12% 22% 18%;
-    border: 1.5px solid rgba(59, 130, 246, 0.55);
-    border-radius: 40% 60% 45% 55% / 55% 40% 60% 45%;
-    background: rgba(59, 130, 246, 0.08);
-    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.4);
-  }
-  &::after {
-    content: 'Dark · Style preview';
-    position: absolute;
-    left: 14px;
-    bottom: 14px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: ${landingTokens.glass};
-    border: 1px solid ${landingTokens.glassBorder};
-    backdrop-filter: blur(8px);
-    font-size: 11px;
-    color: ${landingTokens.textSecondary};
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      rgba(11, 18, 28, 0) 0%,
+      rgba(11, 18, 28, 0.74) 40%,
+      rgba(11, 18, 28, 0.92) 100%
+    );
+    backdrop-filter: blur(10px) saturate(1.15);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 50%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 50%);
   }
 `;
 
-const LayerList = styled.ul`
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/** Size of the cut top-right corner. */
+const CUT_CORNER = '22px';
+
+/**
+ * One numbered card, shared by the steps and the use cases: a solid panel with a cut corner, a
+ * full-width picture on top, then the number, title and text. An accent line runs along the
+ * top edge, short at rest and full width on hover, and the card lifts a little.
+ */
+const cell = css`
+  position: relative;
   display: grid;
-  gap: 10px;
-`;
-
-const LayerRow = styled.li<{ $on?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  color: ${landingTokens.textSecondary};
-  span {
-    width: 32px;
-    height: 18px;
-    border-radius: 999px;
-    background: ${({ $on }) => ($on ? landingTokens.accent : 'rgba(51, 65, 85, 0.9)')};
-    position: relative;
-    &::after {
-      content: '';
-      position: absolute;
-      top: 2px;
-      left: ${({ $on }) => ($on ? '16px' : '2px')};
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff;
+  align-content: start;
+  padding: 0;
+  overflow: hidden;
+  background: ${CARD_BG};
+  clip-path: polygon(0 0, calc(100% - ${CUT_CORNER}) 0, 100% ${CUT_CORNER}, 100% 100%, 0 100%);
+  transition:
+    transform 260ms ${EASE},
+    background-color 260ms ${EASE};
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    width: 48px;
+    height: 3px;
+    background: ${t.accent};
+    box-shadow: 0 0 14px ${t.accent};
+    transition: width 360ms ${EASE};
+  }
+  &:hover {
+    transform: translateY(-4px);
+    &::before {
+      width: calc(100% - ${CUT_CORNER});
     }
   }
-`;
-
-const Steps = styled.ol`
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 14px;
-  counter-reset: step;
-  @media (min-width: 860px) {
-    grid-template-columns: repeat(4, 1fr);
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:hover {
+      transform: none;
+    }
+  }
+  /* The picture runs edge to edge. */
+  > svg {
+    border: 0;
+  }
+  span {
+    color: ${t.accent};
+    font: 500 12px ${t.fontMono};
+    letter-spacing: 0.16em;
+  }
+  h3 {
+    margin: 10px 0;
+    font-size: 19px;
+    font-stretch: 112%;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+  }
+  p {
+    margin: 0;
+    color: ${t.textSecondary};
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    line-height: 1.65;
   }
 `;
 
 const Step = styled.li`
-  position: relative;
-  overflow: hidden;
-  border-radius: ${landingTokens.radiusSm};
-  background: rgba(17, 24, 39, 0.72);
-  border: 1px solid ${landingTokens.glassBorder};
-  counter-increment: step;
-  transition:
-    transform 220ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 220ms ease;
-  &:hover {
-    transform: translateY(-3px);
-    border-color: rgba(59, 130, 246, 0.35);
+  ${cell}
+  /* The text starts over the bottom of the picture and fades in. */
+  > div {
+    ${glass}
+    margin-top: -52px;
+    padding: 52px 24px 24px;
+  }
+  /* Between phone and desktop the steps sit two by two, so the picture goes beside the text. */
+  @media (min-width: 640px) and (max-width: 979px) {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 5fr);
+    align-items: center;
+    > div {
+      margin-top: 0;
+      padding: 20px 24px 24px;
+      &::before {
+        display: none;
+      }
+    }
   }
 `;
 
-const StepMedia = styled.div`
-  position: relative;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  background: #0f172a;
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 420ms cubic-bezier(0.2, 0, 0, 1);
-  }
-  ${Step}:hover & img {
-    transform: scale(1.04);
-  }
-  &::after {
-    content: counter(step);
-    position: absolute;
-    left: 12px;
-    top: 12px;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: rgba(15, 23, 42, 0.78);
-    border: 1px solid rgba(59, 130, 246, 0.45);
-    color: ${landingTokens.accent};
-    font-size: 12px;
-    font-weight: 700;
-    backdrop-filter: blur(8px);
-  }
-`;
-
-const StepBody = styled.div`
-  padding: 14px 16px 16px;
-  h3 {
-    margin: 0 0 6px;
-    font-size: 15px;
-  }
-  p {
-    margin: 0;
-    color: ${landingTokens.textSecondary};
-    font-size: 13px;
-    line-height: 1.45;
-  }
-`;
-
-const UseCaseGrid = styled.div`
-  display: grid;
-  gap: 12px;
-  @media (min-width: 720px) {
+const UseCaseList = styled.ol`
+  ${cellGrid}
+  margin-top: 40px;
+  @media (min-width: 640px) {
     grid-template-columns: repeat(2, 1fr);
   }
   @media (min-width: 980px) {
@@ -509,316 +613,336 @@ const UseCaseGrid = styled.div`
   }
 `;
 
-const UseCase = styled.article`
-  position: relative;
-  overflow: hidden;
-  min-height: 220px;
-  border-radius: ${landingTokens.radiusSm};
-  border: 1px solid ${landingTokens.glassBorder};
-  background: #0f172a;
-  transition:
-    transform 220ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 220ms ease;
-  &:hover {
-    transform: translateY(-3px);
-    border-color: rgba(59, 130, 246, 0.35);
+/** The photo fills the whole card; the text sits over its lower part. */
+const UseCase = styled.li`
+  ${cell}
+  /* A long title must not widen the column, or the photo grows with it. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  align-content: stretch;
+  aspect-ratio: 4 / 3;
+  @media (min-width: 980px) {
+    aspect-ratio: 2 / 3;
   }
+  &:hover img {
+    transform: scale(1.06);
+  }
+`;
+
+const UseCasePhoto = styled.div`
+  grid-area: 1 / 1 / 3 / 2;
+  overflow: hidden;
   img {
-    position: absolute;
-    inset: 0;
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center 20%;
     transition: transform 420ms cubic-bezier(0.2, 0, 0, 1);
   }
-  &:hover img {
-    transform: scale(1.05);
-  }
 `;
 
-const UseCaseBody = styled.div`
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 48px 14px 14px;
-  background: linear-gradient(180deg, transparent, rgba(11, 18, 32, 0.92) 55%);
+const UseCaseText = styled.div`
+  ${glass}
+  grid-area: 2 / 1;
+  display: grid;
+  align-content: start;
+  gap: 0;
+  /* Same height in every card, so the titles line up. */
+  min-height: 172px;
+  padding: 34px 20px 20px;
   h3 {
-    margin: 0 0 4px;
-    font-size: 14px;
+    font-size: 17px;
+    overflow-wrap: anywhere;
+  }
+`;
+
+/** Tighter top and bottom padding: the form has to fit a 720px-tall laptop screen. */
+const ContactSlide = styled(Slide)`
+  padding-top: calc(${HEADER_HEIGHT} + 16px);
+  padding-bottom: 20px;
+`;
+
+/** Pitch and contact details on the left, the form on the right; stacked on small screens. */
+const ContactBody = styled(SlideBody)`
+  display: grid;
+  gap: 32px;
+  @media (min-width: 940px) {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    column-gap: 64px;
+    align-items: start;
+  }
+`;
+
+const ContactInfo = styled.div`
+  min-width: 0;
+`;
+
+/** Slide header, on one line across the top like the other slides. */
+const ContactHead = styled.div`
+  @media (min-width: 940px) {
+    grid-column: 1 / -1;
+  }
+`;
+
+const ContactLead = styled(Lead)`
+  margin-top: 0;
+`;
+
+const ContactList = styled.dl`
+  display: grid;
+  gap: 18px;
+  margin: 32px 0 0;
+  dt {
+    color: ${t.accent};
+    font: 500 11px ${t.fontMono};
+    letter-spacing: 0.16em;
+  }
+  dd {
+    margin: 6px 0 0;
+    font-size: 15px;
     font-weight: 600;
-    color: #fff;
+    letter-spacing: 0.04em;
+    overflow-wrap: anywhere;
   }
-  p {
-    margin: 0;
-    color: ${landingTokens.textSecondary};
-    font-size: 12.5px;
-    line-height: 1.4;
-  }
-`;
-
-const Footer = styled.footer`
-  padding: 28px 24px 40px;
-  border-top: 1px solid ${landingTokens.glassBorder};
-  text-align: center;
-  color: ${landingTokens.textMuted};
-  font-size: 12.5px;
   a {
-    color: ${landingTokens.textSecondary} !important;
+    color: ${t.text};
+    text-decoration: none;
+    border-bottom: 1px solid ${t.lineStrong};
+    transition:
+      color 140ms ease,
+      border-color 140ms ease;
+    &:hover {
+      color: ${t.accent};
+      border-color: ${t.accent};
+    }
   }
 `;
 
-function LogoMark() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.75" />
-      <path d="M3 12h18M12 4v16" stroke="currentColor" strokeWidth="1.25" opacity="0.45" />
-      <path d="M7 15.5l3.5-4.5 2.5 2.5 3.5-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+/** What used to be the page footer: it sits at the foot of the last slide, where it can be reached. */
+const SlideFoot = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 32px;
+  width: 100%;
+  max-width: ${t.maxWidth};
+  margin: 32px auto 0;
+  padding-top: 16px;
+  color: ${t.textMuted};
+  font: 500 11px ${t.fontMono};
+  letter-spacing: 0.12em;
+  a {
+    color: ${t.textSecondary};
+    text-decoration: none;
+    &:hover {
+      color: ${t.text};
+    }
+  }
+`;
 
-const FEATURES = [
-  {
-    title: 'Any region',
-    body: 'Select a city, country or custom area — from small to global.',
-    image: '/landing/feature-any-region.jpg',
-  },
-  {
-    title: 'Your style',
-    body: 'Choose a preset or fully customize colors, layers and labels.',
-    image: '/landing/feature-your-style.jpg',
-  },
-  {
-    title: 'Offline maps',
-    body: 'Generate vector (MBTiles) or raster maps for use in your apps and devices.',
-    image: '/landing/feature-offline.jpg',
-  },
-  {
-    title: 'Built for professionals',
-    body: 'Fast, reliable and scalable. Ideal for developers, GIS, research and business.',
-    image: '/landing/feature-pro.jpg',
-  },
-];
-
-const STEPS = [
-  {
-    title: 'Select area',
-    body: 'Draw a polygon or rectangle around the region you need.',
-    image: '/landing/step-select.jpg',
-  },
-  {
-    title: 'Style',
-    body: 'Start from a preset, then tune colors, labels, and layers.',
-    image: '/landing/step-style.jpg',
-  },
-  {
-    title: 'Generate',
-    body: 'Choose vector or raster MBTiles and queue the generation.',
-    image: '/landing/step-generate.jpg',
-  },
-  {
-    title: 'Use offline',
-    body: 'Download tiles and use them in apps, devices, and field kits.',
-    image: '/landing/step-offline.jpg',
-  },
-];
-
-const PRESETS = [
-  { label: 'Dark', bg: 'linear-gradient(135deg,#0f172a,#1e293b)', active: true },
-  { label: 'Light', bg: 'linear-gradient(135deg,#e2e8f0,#94a3b8)' },
-  { label: 'Minimal', bg: 'linear-gradient(135deg,#111827,#374151)' },
-  { label: 'Navigation', bg: 'linear-gradient(135deg,#1e3a5f,#3b82f6)' },
-  { label: 'Monochrome', bg: 'linear-gradient(135deg,#171717,#737373)' },
-  { label: 'High Contrast', bg: 'linear-gradient(135deg,#000,#fff)' },
-];
-
-const LAYERS = [
-  { name: 'Roads', on: true },
-  { name: 'Buildings', on: true },
-  { name: 'Labels', on: true },
-  { name: 'POIs', on: true },
-  { name: 'Parks', on: true },
-  { name: 'Water', on: true },
-  { name: 'Boundaries', on: false },
-];
-
-const USE_CASES = [
-  { title: 'Mobile apps', body: 'Travel, outdoor, navigation.', image: '/landing/usecase-mobile.jpg' },
-  { title: 'Field work', body: 'Surveying, research, logistics.', image: '/landing/usecase-field.jpg' },
-  { title: 'Business', body: 'Delivery, sales, operations.', image: '/landing/usecase-business.jpg' },
-  { title: 'Developers', body: 'Integrate into your apps.', image: '/landing/usecase-devs.jpg' },
-  { title: 'Education', body: 'Teaching and study.', image: '/landing/usecase-edu.jpg' },
-];
+const pad = (n: number) => String(n).padStart(2, '0');
+/** The cutting-edge feature is the last entry in FEATURES: it sits on the right, the rest on the left. */
+const MAIN_FEATURES = FEATURES.slice(0, -1);
+const CUT_FEATURE = FEATURES.at(-1);
+/** "Cutting-edge" with the edge picked out, if the copy still contains it. */
+/** Slides in document order: anchor id + the name the pager announces. */
+const SLIDES = [
+  { id: 'top', label: 'Intro' },
+  { id: 'how-it-works', label: STEPS.kicker },
+  { id: 'features', label: FEATURES_SECTION.kicker },
+  { id: 'use-cases', label: USE_CASES.kicker },
+  { id: 'contact', label: CONTACT.kicker },
+] as const;
+type SlideId = (typeof SLIDES)[number]['id'];
+const slideIndex = (id: SlideId) => SLIDES.findIndex((s) => s.id === id);
+const slideProps = { [SLIDE_ATTR]: '' };
 
 export function LandingPage() {
-  const hydrate = useAuthStore((s) => s.hydrate);
-  const signedIn = useAuthStore(selectIsSignedIn);
+  const page = useRef<HTMLDivElement>(null);
+  const { active, seen } = useSlides(page);
+  const isSeen = (id: SlideId) => seen.has(slideIndex(id));
+
+  /** Already on the landing, so the logo link scrolls back to the first slide instead of navigating. */
+  const scrollToTop = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+  };
 
   useEffect(() => {
     document.body.dataset.scroll = 'auto';
-    document.title = 'OfflineTiles — Custom offline maps from OpenStreetMap';
-    void hydrate();
+    document.title = SITE.title;
     return () => {
       delete document.body.dataset.scroll;
     };
-  }, [hydrate]);
+  }, []);
 
   return (
-    <Page className="landing">
-      <Hero id="try">
-        <HeroMap />
-        <HeroScrim />
-        <Nav>
-          <Brand to="/">
-            <LogoMark />
-            OfflineTiles
-          </Brand>
-          <NavLinks aria-label="Primary">
-            <a href="#features">Features</a>
-            <a href="#use-cases">Use cases</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#docs">Documentation</a>
-            <a href="#faq">FAQ</a>
-          </NavLinks>
-          <NavActions>
-            {!signedIn && <GhostLink to="/editor">Sign in</GhostLink>}
-            <CtaLink to="/editor">Get started →</CtaLink>
-          </NavActions>
+    <Page className="landing" ref={page}>
+      <SlideSnap />
+      <BackdropTrace />
+      <SkipLink href="#main">Skip to content</SkipLink>
+
+      <Header $solid={active > 0}>
+        <Brand to="/" onClick={scrollToTop} aria-label={LOGO_LABEL}>
+          <Logo />
+        </Brand>
+        <Nav aria-label="Primary">
+          <a href="#how-it-works">{STEPS.kicker}</a>
+          <a href="#features">Features</a>
+          <a href="#use-cases">{USE_CASES.kicker}</a>
+          <a href="#contact">{CONTACT.kicker}</a>
         </Nav>
-        <HeroCopy>
-          <Eyebrow>Open source data. Your maps.</Eyebrow>
-          <Headline>
-            Offline maps for <em>any place on Earth</em>
-          </Headline>
-          <Support>Select an area, pick a style, generate vector or raster MBTiles — ready to use with zero connectivity.</Support>
-          <CtaRow>
-            <PrimaryBtn to="/editor">Open full editor →</PrimaryBtn>
-            <SecondaryBtn href="#features">See how it works</SecondaryBtn>
-          </CtaRow>
-        </HeroCopy>
-      </Hero>
+        <PrimaryBtn to={SITE.editorPath} $compact>
+          {HERO.primaryCta}
+        </PrimaryBtn>
+      </Header>
 
-      <Section id="features">
-        <SectionHead>
-          <h2>Everything you need for offline maps</h2>
-          <p>From select area to styled MBTiles — built for teams that ship maps.</p>
-        </SectionHead>
-        <FeatureGrid>
-          {FEATURES.map((f) => (
-            <FeatureCard key={f.title}>
-              <CardMedia>
-                <img src={f.image} alt="" loading="lazy" decoding="async" />
-              </CardMedia>
-              <CardBody>
-                <h3>{f.title}</h3>
-                <p>{f.body}</p>
-              </CardBody>
-            </FeatureCard>
-          ))}
-        </FeatureGrid>
-      </Section>
+      <Pager aria-label="Slides">
+        <span aria-hidden>{pad(active + 1)}</span>
+        {SLIDES.map((s, i) => (
+          <a key={s.id} href={`#${s.id}`} aria-label={s.label} aria-current={i === active ? 'true' : undefined} />
+        ))}
+        <span aria-hidden>{pad(SLIDES.length)}</span>
+      </Pager>
 
-      <Section>
-        <SectionHead>
-          <h2>Editor preview</h2>
-          <p>Pick a preset, toggle layers, and refine the look before you generate.</p>
-        </SectionHead>
-        <PreviewShell aria-hidden>
-          <PreviewSide>
-            <h4>Style</h4>
-            <PresetGrid>
-              {PRESETS.map((p) => (
-                <PresetThumb key={p.label} $bg={p.bg} $active={p.active}>
-                  {p.label}
-                </PresetThumb>
+      <main id="main">
+        <Hero id="top" aria-labelledby="hero-title" {...slideProps}>
+          <HeroStage>
+            <HeroMap />
+            <HeroScrim />
+            <HeroCopy>
+              <Headline id="hero-title">
+                {HERO.headline.map((line) => (
+                  <span key={line}>{line} </span>
+                ))}
+              </Headline>
+              <Lead>{HERO.body}</Lead>
+              <CtaRow>
+                <PrimaryBtn to={SITE.editorPath}>
+                  {HERO.primaryCta} <Arrow aria-hidden>→</Arrow>
+                </PrimaryBtn>
+                <SecondaryBtn href="#how-it-works">{HERO.secondaryCta}</SecondaryBtn>
+              </CtaRow>
+            </HeroCopy>
+          </HeroStage>
+        </Hero>
+
+        <Slide id="how-it-works" aria-labelledby="steps-title" {...slideProps}>
+          <SlideBody $seen={isSeen('how-it-works')}>
+            <Kicker>{STEPS.kicker}</Kicker>
+            <SlideTitle id="steps-title">
+              {STEPS.headline} <em>{STEPS.headlineAccent}</em>
+            </SlideTitle>
+            <StepList>
+              {STEPS.items.map((s, i) => (
+                <Step key={s.title}>
+                  <StepArt step={i} playing={active === slideIndex('how-it-works')} />
+                  <div>
+                    <span aria-hidden>{pad(i + 1)}</span>
+                    <h3>{s.title}</h3>
+                    <p>{s.body}</p>
+                  </div>
+                </Step>
               ))}
-            </PresetGrid>
-          </PreviewSide>
-          <PreviewMap />
-          <PreviewSide>
-            <h4>Map layers</h4>
-            <LayerList>
-              {LAYERS.map((l) => (
-                <LayerRow key={l.name} $on={l.on}>
-                  {l.name}
-                  <span aria-hidden />
-                </LayerRow>
+            </StepList>
+          </SlideBody>
+        </Slide>
+
+        <FeaturesSlide id="features" aria-labelledby="features-title" {...slideProps}>
+          <FeaturesBody $seen={isSeen('features')}>
+            <FeaturesHead>
+              <Kicker>{FEATURES_SECTION.kicker}</Kicker>
+              <SlideTitle id="features-title">
+                {FEATURES_SECTION.headline} <em>{FEATURES_SECTION.headlineAccent}</em>
+              </SlideTitle>
+            </FeaturesHead>
+            <FeatureList>
+              {MAIN_FEATURES.map((f, i) => (
+                <FeatureRow key={f.title}>
+                  <span aria-hidden>{pad(i + 1)}</span>
+                  <div>
+                    <h3>{f.title}</h3>
+                    <p>{f.body}</p>
+                  </div>
+                </FeatureRow>
               ))}
-            </LayerList>
-          </PreviewSide>
-        </PreviewShell>
-      </Section>
+            </FeatureList>
+            {CUT_FEATURE && (
+              <CutFeature>
+                <span aria-hidden>{pad(FEATURES.length)}</span>
+                <div>
+                  <h3>{CUT_FEATURE.title}</h3>
+                  {CUT_FEATURE.body && <CutBody>{CUT_FEATURE.body}</CutBody>}
+                  <Figure>
+                    <CutDiagram />
+                  </Figure>
+                </div>
+              </CutFeature>
+            )}
+          </FeaturesBody>
+        </FeaturesSlide>
 
-      <Section id="how-it-works">
-        <SectionHead>
-          <h2>How it works</h2>
-          <p>Select area, style, generate — then use the tiles offline.</p>
-        </SectionHead>
-        <Steps>
-          {STEPS.map((s) => (
-            <Step key={s.title}>
-              <StepMedia>
-                <img src={s.image} alt="" loading="lazy" decoding="async" />
-              </StepMedia>
-              <StepBody>
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
-              </StepBody>
-            </Step>
-          ))}
-        </Steps>
-      </Section>
+        <Slide id="use-cases" aria-labelledby="use-cases-title" {...slideProps}>
+          <SlideBody $seen={isSeen('use-cases')}>
+            <Kicker>{USE_CASES.kicker}</Kicker>
+            <SlideTitle id="use-cases-title">
+              {USE_CASES.headline} <em>{USE_CASES.headlineAccent}</em>
+            </SlideTitle>
+            <UseCaseList>
+              {USE_CASES.items.map((u, i) => (
+                <UseCase key={u.title}>
+                  <UseCasePhoto>
+                    <img src={u.image} alt={u.alt} loading="lazy" decoding="async" />
+                  </UseCasePhoto>
+                  <UseCaseText>
+                    <span aria-hidden>{pad(i + 1)}</span>
+                    <h3>{u.title}</h3>
+                    <p>{u.body}</p>
+                  </UseCaseText>
+                </UseCase>
+              ))}
+            </UseCaseList>
+          </SlideBody>
+        </Slide>
 
-      <Section id="use-cases">
-        <SectionHead>
-          <h2>Use cases</h2>
-          <p>Built for product, GIS, and ops teams that cannot rely on connectivity.</p>
-        </SectionHead>
-        <UseCaseGrid>
-          {USE_CASES.map((u) => (
-            <UseCase key={u.title}>
-              <img src={u.image} alt="" loading="lazy" decoding="async" />
-              <UseCaseBody>
-                <h3>{u.title}</h3>
-                <p>{u.body}</p>
-              </UseCaseBody>
-            </UseCase>
-          ))}
-        </UseCaseGrid>
-      </Section>
-
-      <Section id="pricing">
-        <SectionHead>
-          <h2>Pricing</h2>
-          <p>Self-host today. Managed plans coming soon.</p>
-        </SectionHead>
-      </Section>
-
-      <Section id="docs">
-        <SectionHead>
-          <h2>Documentation</h2>
-          <p>
-            Open the <Link to="/editor">full editor</Link> to explore presets, generation options, and queue history. API docs ship with the repo.
-          </p>
-        </SectionHead>
-      </Section>
-
-      <Section id="faq">
-        <SectionHead>
-          <h2>FAQ</h2>
-          <p>
-            <strong style={{ color: landingTokens.text }}>Vector or raster?</strong> Vector MBTiles stay sharp at every zoom; raster is ideal for fixed-style basemaps.
-            <br />
-            <br />
-            <strong style={{ color: landingTokens.text }}>Is the data offline?</strong> Yes — once generated, tiles work without a network.
-          </p>
-        </SectionHead>
-      </Section>
-
-      <Footer>
-        <a href="https://offlinetiles.com">offlinetiles.com</a>
-        {' · '}
-        OpenStreetMap data © OpenStreetMap contributors · <Link to="/editor">Open editor</Link>
-      </Footer>
+        <ContactSlide id="contact" aria-labelledby="contact-title" {...slideProps}>
+          <ContactBody $seen={isSeen('contact')}>
+            <ContactHead>
+              <Kicker>{CONTACT.kicker}</Kicker>
+              <SlideTitle id="contact-title">
+                {CONTACT.headline} <em>{CONTACT.headlineAccent}</em>
+              </SlideTitle>
+            </ContactHead>
+            <ContactInfo>
+              <ContactLead>{CONTACT.body}</ContactLead>
+              <ContactList>
+                <div>
+                  <dt>Email</dt>
+                  <dd>
+                    <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Location</dt>
+                  <dd>{CONTACT.location}</dd>
+                </div>
+              </ContactList>
+            </ContactInfo>
+            <InterestForm />
+          </ContactBody>
+          <SlideFoot>
+            <Link to="/" onClick={scrollToTop} aria-label={LOGO_LABEL}>
+              <Logo size={20} />
+            </Link>
+            <a href={ATTRIBUTION.href} rel="noopener">
+              {ATTRIBUTION.text}
+            </a>
+          </SlideFoot>
+        </ContactSlide>
+      </main>
     </Page>
   );
 }

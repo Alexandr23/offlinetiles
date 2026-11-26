@@ -3,6 +3,7 @@ import type {
   AdminUsersResponse,
   AuthSessionResponse,
   AuthUser,
+  CreateInterestRequest,
   CreateStyleRequest,
   CreateUserRequest,
   DatasetInfo,
@@ -12,6 +13,7 @@ import type {
   GenerationEstimateRequest,
   GenerationListResponse,
   GenerationRequest,
+  InterestListResponse,
   LoginRequest,
   MapStyle,
   RoleLimits,
@@ -37,6 +39,11 @@ export const api = {
     updateRoleLimits: (role: 'guest' | 'user', body: UpdateRoleLimitsRequest) =>
       http.patch<RoleLimits>(`/api/admin/role-limits/${role}`, body),
     queue: () => http.get<AdminQueueResponse>('/api/admin/queue'),
+    interest: (limit = 200) => http.get<InterestListResponse>(`/api/admin/interest?limit=${limit}`),
+    deleteInterest: (id: string) => http.delete(`/api/admin/interest/${id}`),
+  },
+  interest: {
+    submit: (body: CreateInterestRequest) => http.post<{ id: string }>('/api/interest', body),
   },
   dataset: {
     get: (signal?: AbortSignal) => http.get<DatasetInfo>('/api/dataset', signal),

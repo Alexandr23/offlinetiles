@@ -7,3 +7,4 @@ export * from './dataset.js';
 export * from './events.js';
 export * from './errors.js';
 export * from './auth.js';
+export * from './interest.js';

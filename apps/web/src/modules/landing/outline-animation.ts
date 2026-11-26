@@ -29,7 +29,13 @@ export function outlineFrame(elapsedMs: number): OutlineFrame {
 
   if (t < GROW_MS) {
     const p = easeInOutSine(t / GROW_MS);
-    return { main: clamp01(p / MAIN_SHARE), rest: clamp01((p - MAIN_SHARE) / (1 - MAIN_SHARE)), alpha: 1, fill: 0, heat: 1 };
+    return {
+      main: clamp01(p / MAIN_SHARE),
+      rest: clamp01((p - MAIN_SHARE) / (1 - MAIN_SHARE)),
+      alpha: 1,
+      fill: 0,
+      heat: 1,
+    };
   }
   if (t < GROW_MS + HOLD_MS) {
     const fill = easeInOutSine(clamp01((t - GROW_MS) / (HOLD_MS * 0.6)));

@@ -19,6 +19,8 @@ import { registerArtifactRoutes } from '../modules/artifacts/artifacts.routes.js
 import type { ArtifactService } from '../modules/artifacts/artifacts.service.js';
 import type { EstimateService } from '../modules/estimates/estimates.service.js';
 import { registerAssetRoutes } from '../modules/dataset/assets.routes.js';
+import type { InterestRepository } from '../modules/interest/interest.repository.js';
+import { registerInterestRoutes } from '../modules/interest/interest.routes.js';
 
 export interface ServerDeps {
   config: AppConfig;
@@ -30,6 +32,7 @@ export interface ServerDeps {
   artifacts: ArtifactService;
   estimates: EstimateService;
   auth: AuthService;
+  interest: InterestRepository;
   logger?: Logger;
 }
 
@@ -65,6 +68,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   registerStyleRoutes(app, deps.styles, deps.auth);
   registerGenerationRoutes(app, deps.generations, deps.estimates, deps.auth);
   registerArtifactRoutes(app, deps.artifacts, deps.generations, deps.auth);
+  registerInterestRoutes(app, deps.interest);
   registerSseRoute(app, deps.bus);
 
   return app;

@@ -1,196 +1,326 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import styled from 'styled-components';
-import { landingTokens } from './landing.tokens';
 import {
   FEATURE_OPTIONS,
   INTENDED_USE_OPTIONS,
-  readLeadQueryDefaults,
-  submitLeadToTally,
   WILLINGNESS_OPTIONS,
-} from './tally';
+  type CreateInterestRequest,
+} from '@map-exporter/contracts';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import styled, { css, keyframes } from 'styled-components';
+import { api } from '@/shared/api/endpoints';
+import { EMAIL_RE, readLeadQueryDefaults } from './interest';
+import { landingTokens as t } from './landing.tokens';
 
-const Root = styled.section`
-  padding: 72px 24px 96px;
-  background: linear-gradient(180deg, transparent, rgba(59, 130, 246, 0.06));
+const ERROR = '#ff6b81';
+const EASE = 'cubic-bezier(0.2, 0, 0, 1)';
+/** Size of the cut top-right corner, the same as the cards above. */
+const CUT = '22px';
+/** Every field, tag and button is this tall, with the same small cut corner. */
+const CONTROL_HEIGHT = '40px';
+const CONTROL_CUT = '10px';
+const cutCorner = css`
+  clip-path: polygon(0 0, calc(100% - ${CONTROL_CUT}) 0, 100% ${CONTROL_CUT}, 100% 100%, 0 100%);
 `;
 
-const Inner = styled.div`
-  max-width: 640px;
-  margin: 0 auto;
-  text-align: center;
+const reveal = keyframes`
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
 `;
 
-const Eyebrow = styled.p`
-  margin: 0 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: ${landingTokens.accent};
-`;
-
-const Title = styled.h2`
-  margin: 0 0 10px;
-  font-size: clamp(24px, 3vw, 32px);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: ${landingTokens.text};
-`;
-
-const Lead = styled.p`
-  margin: 0 0 28px;
-  color: ${landingTokens.textSecondary};
-  font-size: 15px;
-  line-height: 1.55;
+/** A solid panel with a cut corner and a glowing accent line along its top edge. */
+const panel = css`
+  position: relative;
+  background: linear-gradient(180deg, #111b2a 0%, #0b121c 100%);
+  box-shadow: inset 0 0 0 1px ${t.line};
+  clip-path: polygon(0 0, calc(100% - ${CUT}) 0, 100% ${CUT}, 100% 100%, 0 100%);
+  text-transform: none;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 48px;
+    height: 3px;
+    background: ${t.accent};
+    box-shadow: 0 0 14px ${t.accent};
+    transition: width 360ms ${EASE};
+  }
+  &:focus-within::before {
+    width: calc(100% - ${CUT});
+  }
 `;
 
 const Form = styled.form`
+  ${panel}
   display: grid;
   gap: 16px;
-  text-align: left;
+  padding: 28px 24px 22px;
+  letter-spacing: 0.02em;
+  @media (max-width: 520px) {
+    padding: 24px 18px 18px;
+  }
+`;
+
+const Row = styled.div`
+  display: grid;
+  gap: 16px;
+  @media (min-width: 560px) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 `;
 
 const Field = styled.label`
   display: grid;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: ${landingTokens.textSecondary};
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  color: ${t.textSecondary};
+  font: 500 11px ${t.fontMono};
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 `;
 
 const Hint = styled.span`
-  font-weight: 400;
-  color: ${landingTokens.textMuted};
+  color: ${t.textMuted};
+`;
+
+const control = css`
+  ${cutCorner}
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid ${t.lineStrong};
+  border-radius: 0;
+  background: rgba(79, 209, 255, 0.04);
+  color: ${t.text};
+  font: 400 14px ${t.fontDisplay};
+  letter-spacing: 0.02em;
+  outline: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+  &::placeholder {
+    color: ${t.textMuted};
+  }
+  &:hover {
+    background: rgba(79, 209, 255, 0.07);
+  }
+  &:focus-visible {
+    border-bottom-color: ${t.accent};
+    background: rgba(79, 209, 255, 0.09);
+    box-shadow: inset 3px 0 0 ${t.accent};
+  }
+  &[aria-invalid='true'] {
+    border-bottom-color: ${ERROR};
+    box-shadow: inset 3px 0 0 ${ERROR};
+  }
 `;
 
 const Input = styled.input`
-  height: 44px;
+  ${control}
+  height: ${CONTROL_HEIGHT};
   padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid ${landingTokens.glassBorder};
-  background: rgba(15, 23, 42, 0.65);
-  color: ${landingTokens.text};
-  font-size: 14px;
-  outline: none;
-  transition: border-color 160ms ease;
-  &::placeholder {
-    color: ${landingTokens.textMuted};
-  }
-  &:focus {
-    border-color: ${landingTokens.accent};
-  }
-  &[aria-invalid='true'] {
-    border-color: #f87171;
-  }
 `;
 
+const CHEVRON = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='${t.accent}' stroke-width='2'/></svg>`,
+)}")`;
+
 const Select = styled.select`
-  height: 44px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid ${landingTokens.glassBorder};
-  background: rgba(15, 23, 42, 0.65);
-  color: ${landingTokens.text};
-  font-size: 14px;
-  outline: none;
-  &:focus {
-    border-color: ${landingTokens.accent};
+  ${control}
+  height: ${CONTROL_HEIGHT};
+  padding: 0 38px 0 14px;
+  appearance: none;
+  color-scheme: dark;
+  background-image: ${CHEVRON};
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+  &:invalid {
+    color: ${t.textMuted};
   }
-  &[aria-invalid='true'] {
-    border-color: #f87171;
+  option {
+    background: #0b121c;
+    color: ${t.text};
   }
 `;
 
 const TextArea = styled.textarea`
-  min-height: 96px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid ${landingTokens.glassBorder};
-  background: rgba(15, 23, 42, 0.65);
-  color: ${landingTokens.text};
-  font-size: 14px;
-  resize: vertical;
-  outline: none;
-  font-family: inherit;
-  &:focus {
-    border-color: ${landingTokens.accent};
-  }
+  ${control}
+  height: 72px;
+  padding: 10px 14px;
+  resize: none;
+  line-height: 1.45;
 `;
 
-const OptionGrid = styled.div`
-  display: grid;
-  gap: 8px;
-  @media (min-width: 560px) {
-    grid-template-columns: 1fr 1fr;
-  }
-`;
-
-const CheckOption = styled.label`
+const Chips = styled.div`
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+/** A checkbox or radio drawn as a tag with a little square that fills in; the real input sits on top of it. */
+const Chip = styled.label`
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 40px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid ${landingTokens.glassBorder};
-  background: rgba(15, 23, 42, 0.45);
-  color: ${landingTokens.textSecondary};
-  font-size: 13px;
-  font-weight: 500;
+  gap: 8px;
+  height: ${CONTROL_HEIGHT};
+  padding: 0 14px 0 12px;
+  background: rgba(148, 176, 204, 0.07);
+  color: ${t.textSecondary};
+  font: 500 12px ${t.fontDisplay};
+  letter-spacing: 0.03em;
+  text-transform: none;
   cursor: pointer;
+  ${cutCorner}
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border: 1px solid ${t.lineStrong};
+    transition:
+      background 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
   input {
-    accent-color: ${landingTokens.accent};
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  &:hover {
+    background: rgba(79, 209, 255, 0.12);
+    color: ${t.text};
   }
   &:has(input:checked) {
-    border-color: rgba(59, 130, 246, 0.55);
-    color: ${landingTokens.text};
-    background: ${landingTokens.accentMuted};
+    background: ${t.accentMuted};
+    color: ${t.text};
+    &::before {
+      border-color: ${t.accent};
+      background: ${t.accent};
+      box-shadow: 0 0 8px ${t.accent};
+    }
+  }
+  &:has(input:focus-visible) {
+    /* Inside the tag: the cut corner would clip an outline drawn outside it. */
+    outline: 2px solid ${t.accent};
+    outline-offset: -2px;
   }
 `;
 
-const Consent = styled.label`
+const Reveal = styled.div`
+  animation: ${reveal} 240ms ${EASE} both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`;
+
+const Foot = styled.div`
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: ${landingTokens.textSecondary};
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.4;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+`;
+
+/** A switch: a track with a square knob that slides over and lights up. */
+const Toggle = styled.label`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: ${t.textSecondary};
+  font: 400 13px ${t.fontDisplay};
+  letter-spacing: 0.02em;
+  text-transform: none;
   cursor: pointer;
   input {
-    margin-top: 2px;
-    accent-color: ${landingTokens.accent};
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  &::before {
+    content: '';
+    flex: none;
+    width: 36px;
+    height: 20px;
+    background: rgba(148, 176, 204, 0.12);
+    box-shadow: inset 0 0 0 1px ${t.lineStrong};
+    transition:
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+  &::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 12px;
+    height: 12px;
+    background: ${t.textMuted};
+    transition:
+      transform 220ms ${EASE},
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+  &:has(input:checked) {
+    color: ${t.text};
+    &::before {
+      background: ${t.accentMuted};
+      box-shadow: inset 0 0 0 1px ${t.accent};
+    }
+    &::after {
+      transform: translateX(16px);
+      background: ${t.accent};
+      box-shadow: 0 0 10px ${t.accent};
+    }
+  }
+  &:has(input:focus-visible) {
+    outline: 2px solid ${t.accent};
+    outline-offset: 4px;
   }
 `;
 
-const Segment = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-`;
-
-const SegBtn = styled.button<{ $active?: boolean }>`
-  height: 40px;
-  border-radius: 10px;
-  border: 1px solid ${({ $active }) => ($active ? landingTokens.accent : landingTokens.glassBorder)};
-  background: ${({ $active }) => ($active ? landingTokens.accentMuted : 'rgba(15, 23, 42, 0.45)')};
-  color: ${({ $active }) => ($active ? landingTokens.text : landingTokens.textSecondary)};
-  font-size: 13px;
-  font-weight: 600;
+const Arrow = styled.span`
+  transition: transform 160ms ${EASE};
 `;
 
 const Submit = styled.button`
-  height: 46px;
-  margin-top: 4px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: ${CONTROL_HEIGHT};
+  padding: 0 26px;
   border: 0;
-  background: ${landingTokens.accent};
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background 160ms ease;
+  background: ${t.accent};
+  color: ${t.onAccent};
+  font: 700 13px ${t.fontMono};
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  ${cutCorner}
+  transition:
+    background 140ms ease,
+    transform 140ms ease;
   &:hover:not(:disabled) {
-    background: ${landingTokens.accentHover};
+    background: ${t.accentHover};
+    ${Arrow} {
+      transform: translateX(4px);
+    }
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  &:focus-visible {
+    outline: 2px solid ${t.text};
+    outline-offset: -4px;
   }
   &:disabled {
     opacity: 0.55;
@@ -200,30 +330,31 @@ const Submit = styled.button`
 
 const ErrorText = styled.p`
   margin: 0;
-  color: #f87171;
-  font-size: 13px;
+  color: ${ERROR};
+  font: 400 12px ${t.fontDisplay};
+  letter-spacing: 0.02em;
+  text-transform: none;
 `;
 
-const Success = styled.div`
-  padding: 28px 24px;
-  border-radius: ${landingTokens.radius};
-  border: 1px solid ${landingTokens.glassBorder};
-  background: ${landingTokens.glass};
-  backdrop-filter: blur(12px);
-  color: ${landingTokens.text};
-  font-size: 15px;
-  line-height: 1.5;
+const Done = styled.div`
+  ${panel}
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 40px 28px;
   strong {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 18px;
+    color: ${t.accent};
+    font: 700 13px ${t.fontMono};
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
   span {
-    color: ${landingTokens.textSecondary};
+    color: ${t.textSecondary};
+    font-size: 15px;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
   }
 `;
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 declare global {
   interface Window {
@@ -231,55 +362,63 @@ declare global {
   }
 }
 
+type IntendedUse = (typeof INTENDED_USE_OPTIONS)[number]['id'];
+type Feature = (typeof FEATURE_OPTIONS)[number]['id'];
+type Willingness = (typeof WILLINGNESS_OPTIONS)[number]['id'];
+
+/**
+ * The interest form. Submissions are stored in our database and read from the admin dashboard.
+ * An email is only asked for when the visitor opts in to updates.
+ */
 export function InterestForm() {
   const defaults = useMemo(() => readLeadQueryDefaults(), []);
-  const [email, setEmail] = useState('');
-  const [intendedUseId, setIntendedUseId] = useState('');
-  const [featureIds, setFeatureIds] = useState<string[]>([]);
-  const [willingnessId, setWillingnessId] = useState('');
+  const [intendedUse, setIntendedUse] = useState<IntendedUse | ''>('');
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [willingness, setWillingness] = useState<Willingness | ''>('');
   const [feedback, setFeedback] = useState('');
-  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [wantsUpdates, setWantsUpdates] = useState(false);
+  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [sent, setSent] = useState<{ email: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const emailShown = useRef(false);
 
-  const emailInvalid = touched && !EMAIL_RE.test(email.trim());
-  const useInvalid = touched && !intendedUseId;
+  // Move to the email field when it appears, so the visitor can type straight away.
+  useEffect(() => {
+    if (wantsUpdates && !emailShown.current) emailRef.current?.focus();
+    emailShown.current = wantsUpdates;
+  }, [wantsUpdates]);
 
-  const toggleFeature = (id: string) => {
-    setFeatureIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const useInvalid = touched && !intendedUse;
+  const emailInvalid = touched && wantsUpdates && !EMAIL_RE.test(email.trim());
+
+  const toggleFeature = (id: Feature) =>
+    setFeatures((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setTouched(true);
     setError(null);
-    if (!EMAIL_RE.test(email.trim()) || !intendedUseId) return;
+    if (!intendedUse || (wantsUpdates && !EMAIL_RE.test(email.trim()))) return;
 
+    const body: CreateInterestRequest = {
+      email: wantsUpdates ? email.trim() : undefined,
+      intendedUse,
+      features,
+      willingness: willingness || undefined,
+      feedback: feedback.trim() || undefined,
+      marketingConsent: wantsUpdates,
+      ...defaults,
+    };
     setSubmitting(true);
     try {
-      const result = await submitLeadToTally({
-        email: email.trim(),
-        intendedUseId,
-        featureIds,
-        willingnessId,
-        feedback,
-        marketingConsent,
-        generationId: defaults.generationId,
-        source: defaults.source ?? 'landing',
-        utmSource: defaults.utmSource,
-        utmCampaign: defaults.utmCampaign,
-      });
-      window.dispatchEvent(
-        new CustomEvent('offlinetiles:interest', {
-          detail: { email: email.trim(), intendedUseId, submissionId: result.submissionId },
-        }),
-      );
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'interest_submit', { form: 'tally', submission_id: result.submissionId });
-      }
-      setDone(true);
+      const { id } = await api.interest.submit(body);
+      window.dispatchEvent(new CustomEvent('offlinetiles:interest', { detail: { intendedUse, id } }));
+      if (typeof window.gtag === 'function')
+        window.gtag('event', 'interest_submit', { form: 'site', submission_id: id });
+      setSent({ email: body.email ?? null });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -287,105 +426,119 @@ export function InterestForm() {
     }
   };
 
+  if (sent) {
+    return (
+      <Done role="status">
+        <strong>Thanks, we got it</strong>
+        <span>
+          {sent.email ? `We will reach out at ${sent.email} soon.` : 'Your answers help us decide what to build next.'}
+        </span>
+      </Done>
+    );
+  }
+
   return (
-    <Root id="interest">
-      <Inner>
-        <Eyebrow>Stay in the loop</Eyebrow>
-        <Title>Interested in OfflineTiles?</Title>
-        <Lead>Tell us what you are building. We will follow up from offlinetiles.com with early access notes.</Lead>
-        {done ? (
-          <Success>
-            <strong>Thanks — we got it.</strong>
-            <span>We will reach out at {email} soon.</span>
-          </Success>
-        ) : (
-          <Form onSubmit={onSubmit} noValidate>
-            <Field>
-              Email *
-              <Input
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@company.com"
-                value={email}
-                aria-invalid={emailInvalid || undefined}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              {emailInvalid && <ErrorText>Enter a valid email address.</ErrorText>}
-            </Field>
+    <Form onSubmit={onSubmit} noValidate aria-label="Contact form">
+      <Row>
+        <Field>
+          Intended use *
+          <Select
+            required
+            value={intendedUse}
+            aria-invalid={useInvalid || undefined}
+            onChange={(e) => setIntendedUse(e.target.value as IntendedUse)}
+          >
+            <option value="" disabled>
+              Select one…
+            </option>
+            {INTENDED_USE_OPTIONS.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          {useInvalid && <ErrorText>Choose an intended use.</ErrorText>}
+        </Field>
 
-            <Field>
-              Intended use *
-              <Select
-                required
-                value={intendedUseId}
-                aria-invalid={useInvalid || undefined}
-                onChange={(e) => setIntendedUseId(e.target.value)}
-              >
-                <option value="" disabled>
-                  Select one…
-                </option>
-                {INTENDED_USE_OPTIONS.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-              {useInvalid && <ErrorText>Please choose an intended use.</ErrorText>}
-            </Field>
+        <Field as="div">
+          <span>
+            Willing to pay <Hint>(optional)</Hint>
+          </span>
+          <Chips role="radiogroup" aria-label="Willing to pay">
+            {WILLINGNESS_OPTIONS.map((o) => (
+              <Chip key={o.id}>
+                <input
+                  type="radio"
+                  name="willingness"
+                  checked={willingness === o.id}
+                  // Radios cannot be unchecked; clicking the chosen one again clears the answer.
+                  onChange={() => setWillingness(o.id)}
+                  onClick={() => willingness === o.id && setWillingness('')}
+                />
+                {o.label}
+              </Chip>
+            ))}
+          </Chips>
+        </Field>
+      </Row>
 
-            <Field as="div">
-              Interested features <Hint>(optional)</Hint>
-              <OptionGrid>
-                {FEATURE_OPTIONS.map((o) => (
-                  <CheckOption key={o.id}>
-                    <input type="checkbox" checked={featureIds.includes(o.id)} onChange={() => toggleFeature(o.id)} />
-                    {o.label}
-                  </CheckOption>
-                ))}
-              </OptionGrid>
-            </Field>
+      <Field as="div">
+        <span>
+          Interested in <Hint>(optional)</Hint>
+        </span>
+        <Chips role="group" aria-label="Interested in">
+          {FEATURE_OPTIONS.map((o) => (
+            <Chip key={o.id}>
+              <input type="checkbox" checked={features.includes(o.id)} onChange={() => toggleFeature(o.id)} />
+              {o.label}
+            </Chip>
+          ))}
+        </Chips>
+      </Field>
 
-            <Field as="div">
-              Willingness to pay <Hint>(optional)</Hint>
-              <Segment role="radiogroup" aria-label="Willingness to pay">
-                {WILLINGNESS_OPTIONS.map((o) => (
-                  <SegBtn
-                    key={o.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={willingnessId === o.id}
-                    $active={willingnessId === o.id}
-                    onClick={() => setWillingnessId((cur) => (cur === o.id ? '' : o.id))}
-                  >
-                    {o.label}
-                  </SegBtn>
-                ))}
-              </Segment>
-            </Field>
+      <Field>
+        <span>
+          Feedback <Hint>(optional)</Hint>
+        </span>
+        <TextArea
+          placeholder="Anything else you'd like to share?"
+          maxLength={2000}
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+        />
+      </Field>
 
-            <Field>
-              Feedback <Hint>(optional)</Hint>
-              <TextArea
-                placeholder="Anything else you'd like to share?"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-              />
-            </Field>
+      {wantsUpdates && (
+        <Reveal>
+          <Field>
+            Your email *
+            <Input
+              ref={emailRef}
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@company.com"
+              value={email}
+              maxLength={254}
+              aria-invalid={emailInvalid || undefined}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            {emailInvalid && <ErrorText>Enter a valid email address.</ErrorText>}
+          </Field>
+        </Reveal>
+      )}
 
-            <Consent>
-              <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} />
-              <span>I agree to receive marketing communications</span>
-            </Consent>
+      {error && <ErrorText role="alert">{error}</ErrorText>}
 
-            {error && <ErrorText>{error}</ErrorText>}
-
-            <Submit type="submit" disabled={submitting}>
-              {submitting ? 'Sending…' : 'Submit interest'}
-            </Submit>
-          </Form>
-        )}
-      </Inner>
-    </Root>
+      <Foot>
+        <Toggle>
+          <input type="checkbox" checked={wantsUpdates} onChange={(e) => setWantsUpdates(e.target.checked)} />
+          Keep me updated by email
+        </Toggle>
+        <Submit type="submit" disabled={submitting}>
+          {submitting ? 'Sending…' : 'Send'} <Arrow aria-hidden>→</Arrow>
+        </Submit>
+      </Foot>
+    </Form>
   );
 }

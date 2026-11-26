@@ -10,6 +10,7 @@ import { UsersRepository } from './modules/auth/users.repository.js';
 import { ArtifactService } from './modules/artifacts/artifacts.service.js';
 import { DatasetService } from './modules/dataset/dataset.service.js';
 import { EstimateService } from './modules/estimates/estimates.service.js';
+import { InterestRepository } from './modules/interest/interest.repository.js';
 import { GenerationRepository } from './modules/generations/generations.repository.js';
 import { GenerationService } from './modules/generations/generations.service.js';
 import { QueueWorker } from './modules/queue/worker.js';
@@ -40,6 +41,7 @@ interface Container {
   estimates: EstimateService;
   generations: GenerationService;
   auth: AuthService;
+  interest: InterestRepository;
 }
 
 export async function createContainer(config: AppConfig, logger: Logger): Promise<Container> {
@@ -86,7 +88,23 @@ export async function createContainer(config: AppConfig, logger: Logger): Promis
     auth,
   );
 
-  return { config, db, logger, bus, dataset, styleRepo, styles, generationRepo, artifacts, estimates, generations, auth };
+  const interest = new InterestRepository(db);
+
+  return {
+    config,
+    db,
+    logger,
+    bus,
+    dataset,
+    styleRepo,
+    styles,
+    generationRepo,
+    artifacts,
+    estimates,
+    generations,
+    auth,
+    interest,
+  };
 }
 
 async function main(): Promise<void> {

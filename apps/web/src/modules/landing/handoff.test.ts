@@ -47,7 +47,10 @@ describe('landing handoff', () => {
   });
 
   it('rejects invalid payloads', () => {
-    sessionStorage.setItem(LANDING_HANDOFF_KEY, JSON.stringify({ v: 1, presetId: 'nope', content: 'vector', selection }));
+    sessionStorage.setItem(
+      LANDING_HANDOFF_KEY,
+      JSON.stringify({ v: 1, presetId: 'nope', content: 'vector', selection }),
+    );
     expect(consumeLandingHandoff()).toBeNull();
   });
 });

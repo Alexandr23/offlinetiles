@@ -1,35 +1,31 @@
+import { tokens } from '@/shared/styles/tokens';
+
 /** Landing-only visual tokens (OfflineTiles marketing). Scoped under `.landing`. */
 export const landingTokens = {
-  bg: '#0B1220',
-  bgElevated: '#111827',
-  glass: 'rgba(15, 23, 42, 0.72)',
-  glassBorder: 'rgba(148, 163, 184, 0.18)',
-  accent: '#3B82F6',
-  accentHover: '#60A5FA',
-  accentMuted: 'rgba(59, 130, 246, 0.18)',
-  text: '#F8FAFC',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  radius: '16px',
-  radiusSm: '12px',
-  maxWidth: '1120px',
-  heroCenter: [55.27, 25.2] as [number, number],
-  heroZoom: 11.2,
+  bg: '#070B12',
+  bgElevated: '#0C121C',
+  glass: 'rgba(7, 11, 18, 0.72)',
+  glassBorder: 'rgba(148, 176, 204, 0.16)',
+  line: 'rgba(148, 176, 204, 0.16)',
+  lineStrong: 'rgba(148, 176, 204, 0.34)',
+  /** Same cyan as the editor accent. */
+  accent: '#4FD1FF',
+  accentHover: '#8BE1FF',
+  accentMuted: 'rgba(79, 209, 255, 0.14)',
+  onAccent: '#04080E',
+  /** The editor's selection pink: on the landing it marks selections, the hero outline and the cut line. */
+  cut: tokens.color.selection,
+  /** Land and water of the little maps in the diagrams. */
+  mapLand: '#10263D',
+  mapWater: '#081424',
+  text: '#F2F5F9',
+  textSecondary: '#A3B3C6',
+  textMuted: '#7D8EA3',
+  radius: '0px',
+  radiusSm: '0px',
+  /** Buttons are square-ish, not pills. */
+  radiusButton: '2px',
+  maxWidth: '1200px',
+  fontDisplay: `'Archivo', 'Arial Narrow', Arial, sans-serif`,
+  fontMono: `'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace`,
 } as const;
-
-/** Public preview styles for the hero map (OpenFreeMap). Real presets apply in /editor. */
-export const LANDING_PREVIEW_STYLES: Record<string, string> = {
-  dark: 'https://tiles.openfreemap.org/styles/dark',
-  light: 'https://tiles.openfreemap.org/styles/liberty',
-  streets: 'https://tiles.openfreemap.org/styles/liberty',
-  minimal: 'https://tiles.openfreemap.org/styles/dark',
-  outdoor: 'https://tiles.openfreemap.org/styles/liberty',
-};
-
-export const LANDING_PRESET_OPTIONS = [
-  { id: 'dark' as const, label: 'Dark' },
-  { id: 'light' as const, label: 'Light' },
-  { id: 'minimal' as const, label: 'Minimal' },
-  { id: 'streets' as const, label: 'Navigation' },
-  { id: 'outdoor' as const, label: 'Outdoor' },
-];

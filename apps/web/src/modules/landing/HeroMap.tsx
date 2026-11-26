@@ -14,10 +14,13 @@ import {
 } from './hero-map-style';
 import { outlineFrame, STATIC_OUTLINE_FRAME, type OutlineFrame } from './outline-animation';
 
-/** Gulf Cooperation Council area: Kuwait down to Oman, Riyadh to the Gulf of Oman. */
-const GCC_BOUNDS: maplibregl.LngLatBoundsLike = [
-  [44.5, 16.4],
-  [60.2, 30.2],
+/**
+ * UAE, plus a slim margin so the glowing outline is not clipped.
+ * Tight on purpose: the border trace is the subject and should fill the hero.
+ */
+const UAE_BOUNDS: maplibregl.LngLatBoundsLike = [
+  [51.25, 22.45],
+  [56.65, 26.25],
 ];
 
 const FRAME_INTERVAL_MS = 33;
@@ -39,6 +42,12 @@ const MapHost = styled.div`
     background: rgba(5, 10, 20, 0.6) !important;
     color: ${landingTokens.textMuted} !important;
     font-size: 10px !important;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  /* Keep the text clear of the compact toggle button. */
+  .maplibregl-ctrl-attrib.maplibregl-compact {
+    padding-right: 26px !important;
   }
   .maplibregl-ctrl-attrib a {
     color: ${landingTokens.textSecondary} !important;
@@ -57,7 +66,7 @@ function applyFrame(map: maplibregl.Map, frame: OutlineFrame) {
 }
 
 /**
- * Decorative hero background: a minimal dark map of the GCC with the UAE boundary drawn by a
+ * Decorative hero background: a minimal dark map zoomed on the UAE, with its boundary drawn by a
  * glowing line that grows along the border, holds, fades and starts over. Not interactive.
  */
 export function HeroMap() {
@@ -79,11 +88,18 @@ export function HeroMap() {
     const fit = () => {
       const { clientWidth: w, clientHeight: h } = el;
       const narrow = w < 720;
-      map.fitBounds(GCC_BOUNDS, {
+      // Inset just enough for the headline and the header fade. The country itself is the frame,
+      // so the trace fills the rest of the slide.
+      map.fitBounds(UAE_BOUNDS, {
         animate: false,
         padding: narrow
-          ? { top: Math.round(h * 0.46), bottom: 24, left: 8, right: 8 }
-          : { top: 72, bottom: 48, left: Math.min(Math.round(w * 0.36), 520), right: 24 },
+          ? { top: Math.round(h * 0.36), bottom: Math.round(h * 0.04), left: 8, right: 8 }
+          : {
+              top: Math.round(h * 0.22),
+              bottom: Math.round(h * 0.02),
+              left: Math.round(w * 0.18),
+              right: 12,
+            },
       });
     };
 
