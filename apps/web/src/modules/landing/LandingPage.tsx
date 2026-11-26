@@ -2,8 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { selectIsSignedIn, useAuthStore } from '@/modules/auth/auth.store';
-import { InterestForm } from './InterestForm';
-import { LimitedEditor } from './LimitedEditor';
+import { HeroMap } from './HeroMap';
 import { landingTokens } from './landing.tokens';
 
 const fadeUp = keyframes`
@@ -107,7 +106,7 @@ const Hero = styled.section`
   height: 100dvh;
   min-height: 640px;
   overflow: hidden;
-  background: #020617;
+  background: #050a14;
 `;
 
 const HeroScrim = styled.div`
@@ -666,7 +665,7 @@ export function LandingPage() {
   return (
     <Page className="landing">
       <Hero id="try">
-        <LimitedEditor />
+        <HeroMap />
         <HeroScrim />
         <Nav>
           <Brand to="/">
@@ -790,7 +789,7 @@ export function LandingPage() {
       <Section id="pricing">
         <SectionHead>
           <h2>Pricing</h2>
-          <p>Self-host today. Managed plans coming soon — leave your interest below.</p>
+          <p>Self-host today. Managed plans coming soon.</p>
         </SectionHead>
       </Section>
 
@@ -814,8 +813,6 @@ export function LandingPage() {
           </p>
         </SectionHead>
       </Section>
-
-      <InterestForm />
 
       <Footer>
         <a href="https://offlinetiles.com">offlinetiles.com</a>

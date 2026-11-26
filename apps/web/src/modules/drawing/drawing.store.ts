@@ -2,7 +2,8 @@ import { geometryAreaKm2, geometryBounds, type AreaSelection, type BBox } from '
 import { create } from 'zustand';
 
 export type DrawTool = 'none' | 'rectangle' | 'polygon';
-export type SelectionShape = 'rectangle' | 'polygon';
+/** `country` selections are display-only (not editable or draggable). */
+export type SelectionShape = 'rectangle' | 'polygon' | 'country';
 
 interface DrawingState {
   tool: DrawTool;

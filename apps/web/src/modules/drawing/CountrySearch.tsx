@@ -124,8 +124,7 @@ export function CountrySearch() {
   }, [query, results.length]);
 
   const selectCountry = (country: CountryRecord) => {
-    // Keep the full country ring — every vertex is shown on the map.
-    loadSelection({ geometry: country.geometry }, 'polygon', country.name);
+    loadSelection({ geometry: country.geometry }, 'country', country.name);
     const map = useMapStore.getState().map;
     if (map) {
       map.fitBounds(geometryBounds(country.geometry), { padding: 80, duration: 600, maxZoom: 8 });

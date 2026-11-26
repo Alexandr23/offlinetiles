@@ -47,10 +47,10 @@ export function syncSelectionVerticesOverlay(map: MaplibreMap, geometry: Selecti
       type: 'circle',
       source: SELECTION_VERTICES_SOURCE,
       paint: {
-        'circle-radius': 4,
+        'circle-radius': 2.5,
         'circle-color': '#e8eef5',
-        'circle-stroke-width': 2,
-        'circle-stroke-color': tokens.color.accent,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': tokens.color.selection,
         'circle-opacity': 1,
       },
     });
