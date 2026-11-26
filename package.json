@@ -27,6 +27,7 @@
     "download-osm": "tsx scripts/download-osm.ts",
     "build-master": "tsx scripts/build-master.ts",
     "build-countries": "tsx scripts/build-countries.ts",
+    "build-landing-hero": "node scripts/build-landing-hero.mjs",
     "server": "pnpm --filter @map-exporter/server start",
     "server:api": "pnpm --filter @map-exporter/server api",
     "server:worker": "pnpm --filter @map-exporter/server worker",
@@ -34,10 +35,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "pmtiles": "^4.3.0",
     "prettier": "^3.5.0",
+    "puppeteer-core": "^25.19.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
-    "pmtiles": "^4.3.0",
     "zod": "^4.0.0"
   }
 }

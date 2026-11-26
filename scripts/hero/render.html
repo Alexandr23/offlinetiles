@@ -1,0 +1,397 @@
+<!doctype html>
+<!--
+  Rendered by scripts/build-landing-hero.mjs in headless Chrome. Not shipped.
+
+  1. Renders the dark UAE map exactly like the landing hero shows it (as images).
+  2. Renders a black/white mask of the same camera (water + country borders in white) and traces
+     the UAE land areas out of it, so the animated outline follows the borders and coast that are
+     actually visible in the picture, not a different dataset.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/maplibre-gl.css" />
+    <style>
+      html, body { margin: 0; background: #000; }
+      .map { position: absolute; left: 0; top: 0; width: 1440px; height: 800px; }
+    </style>
+  </head>
+  <body>
+    <div id="a" class="map"></div>
+    <div id="b" class="map" style="top: 900px"></div>
+    <script src="/maplibre-gl.js"></script>
+    <script>
+      const W = 1440;
+      const H = 800;
+      const SCALE = 2;
+      const UAE_BOUNDS = [
+        [51.25, 22.45],
+        [56.65, 26.25],
+      ];
+      // The UAE sits in the right of the picture, under the headline. Room for the text on the left.
+      const PADDING = { top: 176, bottom: 16, left: 330, right: 24 };
+
+      const COLORS = {
+        land: '#131f35',
+        water: '#050a14',
+        border: 'rgba(148, 163, 184, 0.2)',
+        country: '#8ba0bd',
+        place: '#5d708c',
+        water_label: '#2d3f5a',
+      };
+      const SOURCE = { openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } };
+      const GLYPHS = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
+      const COUNTRY_BORDER = ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]];
+      const textFont = ['Noto Sans Regular'];
+
+      const imageStyle = {
+        version: 8,
+        glyphs: GLYPHS,
+        sources: SOURCE,
+        layers: [
+          { id: 'background', type: 'background', paint: { 'background-color': COLORS.land } },
+          { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water', paint: { 'fill-color': COLORS.water } },
+          {
+            id: 'boundary-country',
+            type: 'line',
+            source: 'openmaptiles',
+            'source-layer': 'boundary',
+            filter: COUNTRY_BORDER,
+            layout: { 'line-join': 'round' },
+            paint: { 'line-color': COLORS.border, 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 0.6, 7, 1.4] },
+          },
+          {
+            id: 'water-label',
+            type: 'symbol',
+            source: 'openmaptiles',
+            'source-layer': 'water_name',
+            filter: ['match', ['get', 'class'], ['sea', 'ocean'], true, false],
+            layout: {
+              'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
+              'text-font': textFont,
+              'text-size': 12,
+              'text-letter-spacing': 0.35,
+              'text-transform': 'uppercase',
+            },
+            paint: { 'text-color': COLORS.water_label },
+          },
+          {
+            id: 'city-label',
+            type: 'symbol',
+            source: 'openmaptiles',
+            'source-layer': 'place',
+            minzoom: 4,
+            filter: ['all', ['==', ['get', 'class'], 'city'], ['<=', ['get', 'rank'], 3]],
+            layout: {
+              'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
+              'text-font': textFont,
+              'text-size': 11,
+              'text-anchor': 'center',
+            },
+            paint: { 'text-color': COLORS.place, 'text-halo-color': COLORS.land, 'text-halo-width': 1.5 },
+          },
+          {
+            id: 'country-label',
+            type: 'symbol',
+            source: 'openmaptiles',
+            'source-layer': 'place',
+            filter: ['==', ['get', 'class'], 'country'],
+            layout: {
+              'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
+              'text-font': textFont,
+              'text-size': ['interpolate', ['linear'], ['zoom'], 3, 9, 6, 13],
+              'text-letter-spacing': 0.28,
+              'text-transform': 'uppercase',
+              'text-max-width': 8,
+            },
+            paint: { 'text-color': COLORS.country, 'text-halo-color': COLORS.land, 'text-halo-width': 2 },
+          },
+        ],
+      };
+
+      // Land is black, water and borders are white. Water is outlined too, so the border lines
+      // (which end at the coast) always close against it.
+      const maskStyle = {
+        version: 8,
+        sources: SOURCE,
+        layers: [
+          { id: 'background', type: 'background', paint: { 'background-color': '#000' } },
+          { id: 'water', type: 'fill', source: 'openmaptiles', 'source-layer': 'water', paint: { 'fill-color': '#fff' } },
+          {
+            id: 'water-edge',
+            type: 'line',
+            source: 'openmaptiles',
+            'source-layer': 'water',
+            paint: { 'line-color': '#fff', 'line-width': 1.2 },
+          },
+          {
+            id: 'boundary',
+            type: 'line',
+            source: 'openmaptiles',
+            'source-layer': 'boundary',
+            filter: COUNTRY_BORDER,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': '#fff', 'line-width': 1.5 },
+          },
+        ],
+      };
+
+      function renderMap(container, style, pixelRatio) {
+        return new Promise((resolve, reject) => {
+          const map = new maplibregl.Map({
+            container,
+            style,
+            interactive: false,
+            attributionControl: false,
+            fadeDuration: 0,
+            pixelRatio,
+            canvasContextAttributes: { antialias: true, preserveDrawingBuffer: true },
+          });
+          map.fitBounds(UAE_BOUNDS, { animate: false, padding: PADDING });
+          map.on('error', (e) => {
+            const msg = (e.error && e.error.message) || '';
+            if (!/glyph|fonts|204/i.test(msg)) console.warn('map error:', msg);
+          });
+          const timer = setTimeout(() => reject(new Error('map did not become idle')), 120000);
+          map.once('idle', () => {
+            clearTimeout(timer);
+            resolve(map);
+          });
+        });
+      }
+
+      const webp = (canvas) => canvas.toDataURL('image/webp', 0.86).split(',')[1];
+
+      /** Label the 4-connected black areas of the mask. Returns { labels, count }. */
+      function labelLand(land, w, h) {
+        const labels = new Int32Array(w * h);
+        const stack = new Int32Array(w * h);
+        let count = 0;
+        for (let start = 0; start < labels.length; start++) {
+          if (!land[start] || labels[start]) continue;
+          count++;
+          let top = 0;
+          stack[top++] = start;
+          labels[start] = count;
+          while (top) {
+            const p = stack[--top];
+            const x = p % w;
+            const neighbours = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p >= w ? p - w : -1, p < w * (h - 1) ? p + w : -1];
+            for (const q of neighbours) {
+              if (q >= 0 && land[q] && !labels[q]) {
+                labels[q] = count;
+                stack[top++] = q;
+              }
+            }
+          }
+        }
+        return { labels, count };
+      }
+
+      /** Outer outlines of one labelled area, as lists of [x, y] (edge midpoints, clockwise on screen). */
+      function traceArea(labels, label, w, h) {
+        const at = (x, y) => (x >= 0 && y >= 0 && x < w && y < h ? labels[y * w + x] : 0);
+        const cw = w + 1;
+        // Directed unit edges between pixel corners with the area on the right-hand side.
+        const next = new Map();
+        const add = (ax, ay, bx, by) => {
+          const key = ay * cw + ax;
+          const list = next.get(key);
+          const edge = by * cw + bx;
+          if (list) list.push(edge);
+          else next.set(key, [edge]);
+        };
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (labels[y * w + x] !== label) continue;
+            if (at(x, y - 1) !== label) add(x, y, x + 1, y);
+            if (at(x + 1, y) !== label) add(x + 1, y, x + 1, y + 1);
+            if (at(x, y + 1) !== label) add(x + 1, y + 1, x, y + 1);
+            if (at(x - 1, y) !== label) add(x, y + 1, x, y);
+          }
+        }
+        const loops = [];
+        for (const [startKey, startList] of next) {
+          while (startList.length) {
+            const corners = [startKey];
+            let cur = startList.pop();
+            while (cur !== startKey) {
+              corners.push(cur);
+              cur = next.get(cur).pop();
+            }
+            // Edge midpoints: a staircase of pixel edges becomes a polyline through the real border.
+            const mids = corners.map((c, i) => {
+              const d = corners[(i + 1) % corners.length];
+              return [((c % cw) + (d % cw)) / 2, (Math.floor(c / cw) + Math.floor(d / cw)) / 2];
+            });
+            loops.push(mids);
+          }
+        }
+        return loops;
+      }
+
+      const signedArea = (pts) => {
+        let a = 0;
+        for (let i = 0; i < pts.length; i++) {
+          const [x1, y1] = pts[i];
+          const [x2, y2] = pts[(i + 1) % pts.length];
+          a += x1 * y2 - x2 * y1;
+        }
+        return a / 2;
+      };
+
+      function simplify(pts, eps) {
+        if (pts.length < 3) return pts;
+        const keep = new Uint8Array(pts.length);
+        keep[0] = keep[pts.length - 1] = 1;
+        const stack = [[0, pts.length - 1]];
+        while (stack.length) {
+          const [a, b] = stack.pop();
+          let far = -1;
+          let dmax = eps;
+          const [ax, ay] = pts[a];
+          const [bx, by] = pts[b];
+          const len = Math.hypot(bx - ax, by - ay) || 1;
+          for (let i = a + 1; i < b; i++) {
+            const d = Math.abs((by - ay) * pts[i][0] - (bx - ax) * pts[i][1] + bx * ay - by * ax) / len;
+            if (d > dmax) {
+              dmax = d;
+              far = i;
+            }
+          }
+          if (far >= 0) {
+            keep[far] = 1;
+            stack.push([a, far], [far, b]);
+          }
+        }
+        return pts.filter((_, i) => keep[i]);
+      }
+
+      /** Douglas-Peucker needs two distinct ends: cut the ring at the point farthest from its first. */
+      function simplifyRing(pts, eps) {
+        let far = 0;
+        let best = 0;
+        pts.forEach(([x, y], i) => {
+          const d = Math.hypot(x - pts[0][0], y - pts[0][1]);
+          if (d > best) {
+            best = d;
+            far = i;
+          }
+        });
+        const first = simplify(pts.slice(0, far + 1), eps);
+        const second = simplify([...pts.slice(far), pts[0]], eps);
+        return [...first, ...second.slice(1, -1)];
+      }
+
+      const fmt = (n) => String(Math.round(n * 10) / 10);
+      const toPath = (ring) => 'M' + ring.map(([x, y]) => `${fmt(x)} ${fmt(y)}`).join('L') + 'Z';
+
+      window.generate = async () => {
+        const countries = await (await fetch('/countries.json')).json();
+        const uae = countries.countries.find((c) => c.id === 'AE');
+        const polygons = uae.geometry.type === 'Polygon' ? [uae.geometry.coordinates] : uae.geometry.coordinates;
+
+        // --- Pictures ---------------------------------------------------------------------
+        const images = {};
+        for (const ratio of [1, 2]) {
+          const host = document.getElementById('a');
+          host.innerHTML = '';
+          const map = await renderMap(host, imageStyle, ratio);
+          images[ratio] = webp(map.getCanvas());
+          map.remove();
+        }
+
+        // --- Mask and outline -------------------------------------------------------------
+        const host = document.getElementById('b');
+        const map = await renderMap(host, maskStyle, SCALE);
+        const w = W * SCALE;
+        const h = H * SCALE;
+        const scratch = document.createElement('canvas');
+        scratch.width = w;
+        scratch.height = h;
+        const ctx = scratch.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(map.getCanvas(), 0, 0, w, h);
+        const rgba = ctx.getImageData(0, 0, w, h).data;
+        const land = new Uint8Array(w * h);
+        for (let i = 0; i < land.length; i++) land[i] = rgba[i * 4] < 40 ? 1 : 0; // any trace of white counts as border or water
+
+        window.maskPng = scratch.toDataURL('image/png').split(',')[1];
+        const { labels, count } = labelLand(land, w, h);
+
+        // The index only decides WHICH areas are the UAE; their shape comes from the picture.
+        const project = ([lng, lat]) => {
+          const p = map.project([lng, lat]);
+          return [p.x * SCALE, p.y * SCALE];
+        };
+        const uaePath = new Path2D();
+        for (const polygon of polygons) {
+          for (const ring of polygon) {
+            ring.forEach((c, i) => {
+              const [x, y] = project(c);
+              if (i === 0) uaePath.moveTo(x, y);
+              else uaePath.lineTo(x, y);
+            });
+            uaePath.closePath();
+          }
+        }
+        const total = new Float64Array(count + 1);
+        const inside = new Float64Array(count + 1);
+        for (let y = 2; y < h; y += 4) {
+          for (let x = 2; x < w; x += 4) {
+            const label = labels[y * w + x];
+            if (!label) continue;
+            total[label]++;
+            if (ctx.isPointInPath(uaePath, x, y)) inside[label]++;
+          }
+        }
+        const chosen = [];
+        for (let label = 1; label <= count; label++) {
+          if (total[label] >= 3 && inside[label] / total[label] > 0.5) chosen.push(label);
+        }
+
+        const rings = [];
+        for (const label of chosen) {
+          const loops = traceArea(labels, label, w, h)
+            .map((pts) => ({ pts, area: signedArea(pts) }))
+            .filter((l) => l.pts.length > 4);
+          if (!loops.length) continue;
+          // The outer outline has the largest area; holes (lakes, inland water) wind the other way.
+          loops.sort((a, b) => Math.abs(b.area) - Math.abs(a.area));
+          const outer = loops[0];
+          let pts = outer.pts;
+          if (outer.area < 0) pts = [...pts].reverse(); // clockwise on screen
+          pts = simplifyRing(pts, 0.9);
+          if (pts.length >= 4) rings.push({ pts, area: Math.abs(outer.area) });
+        }
+        rings.sort((a, b) => b.area - a.area);
+        const [main, ...rest] = rings;
+        if (!main) throw new Error(`no UAE area found in the mask (${count} areas, ${chosen.length} chosen)`);
+
+        // Start the main ring at its westernmost point.
+        let startAt = 0;
+        main.pts.forEach(([x], i) => {
+          if (x < main.pts[startAt][0]) startAt = i;
+        });
+        const mainPts = [...main.pts.slice(startAt), ...main.pts.slice(0, startAt)];
+        const small = rest.filter((r) => r.area >= 60).slice(0, 60);
+
+        const all = [mainPts, ...small.map((r) => r.pts)].flat();
+        const xs = all.map((p) => p[0]);
+        const ys = all.map((p) => p[1]);
+        map.remove();
+
+        return {
+          images,
+          outline: {
+            width: w,
+            height: h,
+            main: toPath(mainPts),
+            rest: small.map((r) => toPath(r.pts)).join(''),
+            bbox: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map((n) => Math.round(n)),
+            stats: { components: count, chosen: chosen.length, rings: rings.length, kept: small.length + 1, mainPoints: mainPts.length },
+          },
+        };
+      };
+    </script>
+  </body>
+</html>
